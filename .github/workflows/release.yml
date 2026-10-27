@@ -24,7 +24,7 @@ jobs:
       - run: npm ci
       - run: npm test
       # Opens a "Version packages" PR, or publishes to npm when that PR is merged.
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         with:
           publish: npx changeset publish
         env:
