@@ -104,7 +104,7 @@ describe('DynamoDB adapter', () => {
         tableName: 'orders',
         partitionKey: { name: 'pk', type: 'S' },
         sortKey: { name: 'sk', type: 'S' },
-        indexes: {},
+        indexes: { byStatus: { partitionKey: { name: 'status', type: 'S' } } },
         partitionKeyPrefixes: ['TENANT#acme'],
         projection: ['pk', 'sk', 'total'],
         maxItems: 10,
@@ -146,5 +146,9 @@ describe('DynamoDB adapter', () => {
     expect(
       (await handler({ partitionKey: 'TENANT#acme', indexName: 'secret' }, context('query'))).error,
     ).toMatch(/not allowed/);
+    expect(
+      (await handler({ partitionKey: 'TENANT#acme', indexName: 'byStatus' }, context('query')))
+        .error,
+    ).toMatch(/Index queries are disabled/);
   });
 });

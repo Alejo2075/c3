@@ -13,17 +13,36 @@ async function s3() {
   return s3Module;
 }
 
+/** Archive members are stored relative to "/" and must stay inside these trees. */
+export function allowedArchivePaths(config) {
+  return [config.workspaceDir, join(homedir(), '.claude', 'projects')].map((p) =>
+    p.replace(/^\/+/, ''),
+  );
+}
+
+/** True when every member is a relative path inside one of the allowed trees. */
+export function isSafeArchiveListing(listing, allowed) {
+  const members = listing.split('\n').filter(Boolean);
+  return members.every((member) => {
+    const clean = member.replace(/\/+$/, '');
+    if (clean.startsWith('/') || clean.split('/').includes('..')) return false;
+    return allowed.some((root) => clean === root || clean.startsWith(`${root}/`));
+  });
+}
+
 function objectKey(config, sessionId) {
   return `${config.sessionPrefix}${sessionId}.tar.gz`;
 }
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
     let stderr = '';
+    child.stdout.on('data', (chunk) => (stdout += chunk));
     child.stderr.on('data', (chunk) => (stderr += chunk));
     child.on('close', (code) =>
-      code === 0 ? resolve() : reject(new Error(`${command} failed: ${stderr}`)),
+      code === 0 ? resolve(stdout) : reject(new Error(`${command} failed: ${stderr}`)),
     );
     child.on('error', reject);
   });
@@ -38,7 +57,11 @@ export async function restoreSession(config, sessionId) {
       new GetObjectCommand({ Bucket: config.sessionBucket, Key: objectKey(config, sessionId) }),
     );
     await pipeline(result.Body, createWriteStream(archive));
-    await run('tar', ['-xzf', archive, '-C', '/']);
+    const listing = await run('tar', ['-tzf', archive]);
+    if (!isSafeArchiveListing(listing, allowedArchivePaths(config))) {
+      throw new Error('Session archive contains paths outside the workspace and session history.');
+    }
+    await run('tar', ['-xzf', archive, '-C', '/', '--no-same-owner', '--no-same-permissions']);
   } catch (err) {
     if (err?.name !== 'NoSuchKey') {
       process.stdout.write(
@@ -54,11 +77,9 @@ export async function saveSession(config, sessionId) {
   const { S3Client, PutObjectCommand } = await s3();
   const client = new S3Client({ region: config.region });
   const archive = join(tmpdir(), `${sessionId}.tar.gz`);
-  const paths = [config.workspaceDir, join(homedir(), '.claude', 'projects')].filter((p) =>
-    existsSync(p),
-  );
+  const paths = allowedArchivePaths(config).filter((p) => existsSync(`/${p}`));
   try {
-    await run('tar', ['-czf', archive, '-P', ...paths]);
+    await run('tar', ['-czf', archive, '-C', '/', ...paths]);
     await client.send(
       new PutObjectCommand({
         Bucket: config.sessionBucket,

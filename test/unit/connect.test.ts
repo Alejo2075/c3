@@ -219,13 +219,8 @@ describe('connect(table)', () => {
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
     });
-    table.addGlobalSecondaryIndex({
-      indexName: 'byStatus',
-      partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
-    });
     agent.connect(table, {
       name: 'orders',
-      indexes: ['byStatus'],
       partitionKeyPrefixes: ['TENANT#acme'],
       attributes: ['total'],
     });
@@ -233,17 +228,50 @@ describe('connect(table)', () => {
       Template.fromStack(stack).toJSON(),
       'AgentordersAdapterFunctionServiceRole',
     );
-    const actions = actionsOf(statements);
-    expect([...new Set(actions)].sort()).toEqual(['dynamodb:GetItem', 'dynamodb:Query']);
-    const tableStatement = statements.find((s) => actionsOf([s]).includes('dynamodb:GetItem'));
-    expect(tableStatement?.Condition).toMatchObject({
+    expect([...new Set(actionsOf(statements))].sort()).toEqual([
+      'dynamodb:GetItem',
+      'dynamodb:Query',
+    ]);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.Condition).toMatchObject({
       'ForAllValues:StringLike': { 'dynamodb:LeadingKeys': ['TENANT#acme*'] },
       'ForAllValues:StringEquals': {
-        'dynamodb:Attributes': expect.arrayContaining(['pk', 'sk', 'status', 'total']),
+        'dynamodb:Attributes': expect.arrayContaining(['pk', 'sk', 'total']),
       },
     });
+  });
+
+  test('declared indexes get Query on the index ARN only', () => {
+    const { stack, agent } = setup();
+    const table = new dynamodb.Table(stack, 'Orders', {
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+    });
+    table.addGlobalSecondaryIndex({
+      indexName: 'byStatus',
+      partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
+    });
+    agent.connect(table, { name: 'orders', indexes: ['byStatus'] });
+    const statements = statementsForRole(
+      Template.fromStack(stack).toJSON(),
+      'AgentordersAdapterFunctionServiceRole',
+    );
     const indexStatement = statements.find((s) => !actionsOf([s]).includes('dynamodb:GetItem'));
+    expect(actionsOf(indexStatement ? [indexStatement] : [])).toEqual(['dynamodb:Query']);
     expect(JSON.stringify(indexStatement?.Resource)).toContain('/index/byStatus');
+  });
+
+  test('indexes cannot bypass partition key prefixes', () => {
+    const { stack, agent } = setup();
+    const table = new dynamodb.Table(stack, 'Orders', {
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+    });
+    table.addGlobalSecondaryIndex({
+      indexName: 'byStatus',
+      partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
+    });
+    expect(() =>
+      agent.connect(table, { name: 'orders', indexes: ['byStatus'], partitionKeyPrefixes: ['T#'] }),
+    ).toThrow(/cannot be combined/);
   });
 
   test('imported tables need an explicit key schema', () => {

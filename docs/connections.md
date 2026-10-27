@@ -53,8 +53,7 @@ agent.connect(bucket, { name: 'docs', prefixes: ['reports/'], maxObjectBytes: 25
 ```ts
 agent.connect(table, {
   name: 'orders',
-  indexes: ['byStatus'],
-  partitionKeyPrefixes: ['TENANT#acme'],
+  partitionKeyPrefixes: ['TENANT#acme'],   // or `indexes: ['byStatus']`, not both
   attributes: ['status', 'total'],
   maxItems: 25,
 });
@@ -64,7 +63,7 @@ agent.connect(table, {
 |---|---|
 | IAM | `dynamodb:GetItem` and `dynamodb:Query` on the table, plus `dynamodb:Query` on each declared index. `ForAllValues:StringLike dynamodb:LeadingKeys` when `partitionKeyPrefixes` is set. `ForAllValues:StringEquals dynamodb:Attributes` and `dynamodb:Select = SPECIFIC_ATTRIBUTES` when `attributes` is set (key attributes are added automatically). `kms:Decrypt` for a CMK. |
 | Inputs | `get_item { partitionKey, sortKey? }`, `query { partitionKey, sortKeyCondition?, indexName?, limit?, descending?, nextToken? }` |
-| Limits | Read-only. No `Scan`. String and number keys only (no binary, no multi-attribute keys). Imported tables need `keySchema`, and each of their indexes needs its own key schema. `partitionKeyPrefixes` applies to the base table: only declare indexes the agent may read in full. |
+| Limits | Read-only. No `Scan`. String and number keys only (no binary, no multi-attribute keys). Imported tables need `keySchema`, and each of their indexes needs its own key schema. `partitionKeyPrefixes` cannot be combined with `indexes`, because IAM leading-key conditions do not restrict index queries. |
 
 ## SQS queues: `send_message`
 

@@ -33,7 +33,7 @@ export interface DynamoDbToolOptions extends ConnectionOptions {
   /**
    * Restrict reads to string partition keys that start with one of these
    * prefixes (enforced by IAM `dynamodb:LeadingKeys`), for example
-   * `['TENANT#acme']`. Applies to the base table.
+   * `['TENANT#acme']`. Cannot be combined with `indexes`.
    * @default - any partition key
    */
   readonly partitionKeyPrefixes?: readonly string[];
@@ -107,6 +107,13 @@ export function connectDynamoDb(
   if (prefixes && (prefixes.length === 0 || keySchema.partitionKey.type !== 'S')) {
     throw new C3ValidationError(
       `${label}: partitionKeyPrefixes needs a string partition key and at least one prefix.`,
+    );
+  }
+  if (prefixes && Object.keys(indexes).length > 0) {
+    // dynamodb:LeadingKeys constrains the base table key only; an index query
+    // would bypass the tenant restriction.
+    throw new C3ValidationError(
+      `${label}: "indexes" cannot be combined with "partitionKeyPrefixes" because IAM leading-key conditions do not restrict index queries.`,
     );
   }
   const maxItems = options.maxItems ?? 25;

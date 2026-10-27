@@ -42,7 +42,10 @@ you, and the risks that remain.
 - **Hooks and project MCP servers.** These run inside the container with the runtime role's
   credentials. Review them like any other code you deploy.
 - **Session storage.** Archives include the workspace and conversation history. Use a private,
-  encrypted bucket with lifecycle rules.
+  encrypted bucket with lifecycle rules. All sessions of one agent share the runtime role, so IAM
+  cannot stop one session from overwriting another session's archive. The entrypoint only
+  extracts members inside `/workspace` and `~/.claude/projects` (no absolute paths, no `..`), but
+  you should treat every session of an agent as one trust domain.
 
 ## Reporting vulnerabilities
 

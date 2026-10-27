@@ -72,7 +72,12 @@ export const tools = {
       );
     }
     const pk = keyValue(input, 'partitionKey', schema.partitionKey);
-    if (indexName === undefined) checkPartitionPrefix(pk, config.partitionKeyPrefixes);
+    if (indexName !== undefined && config.partitionKeyPrefixes?.length) {
+      throw new ToolInputError(
+        'Index queries are disabled when partition key prefixes are enforced.',
+      );
+    }
+    checkPartitionPrefix(pk, config.partitionKeyPrefixes);
 
     const { ProjectionExpression, ExpressionAttributeNames = {} } = projection();
     const names = { ...ExpressionAttributeNames, '#pk': schema.partitionKey.name };
