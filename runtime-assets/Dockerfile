@@ -6,7 +6,7 @@
 # license terms (https://code.claude.com/docs/en/legal-and-compliance).
 FROM --platform=linux/arm64 ghcr.io/astral-sh/uv:0.13.6 AS uv
 
-FROM --platform=linux/arm64 node:22.23.4-bookworm-slim
+FROM --platform=linux/arm64 node:26.12.1-bookworm-slim
 
 ARG CLAUDE_CODE_VERSION
 ARG MCP_PROXY_FOR_AWS_VERSION=1.7.0
