@@ -1,6 +1,6 @@
 {
   "name": "c3-aws",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "C3 (Claude Code Cloud): build Claude Code agents, connect AWS services, deploy to Amazon Bedrock AgentCore with AWS CDK.",
   "license": "MIT",
   "author": "Alejandro Santana",
