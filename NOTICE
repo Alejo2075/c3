@@ -1,0 +1,23 @@
+C3 (Claude Code Cloud)
+Copyright (c) 2026 Alejandro Santana. Licensed under the MIT License.
+
+C3 is an independent open-source project. It is not affiliated with, endorsed
+by, or sponsored by Anthropic PBC or Amazon Web Services, Inc.
+
+"Claude" and "Claude Code" are trademarks of Anthropic PBC. "AWS", "Amazon
+Bedrock" and "Amazon Bedrock AgentCore" are trademarks of Amazon.com, Inc. or
+its affiliates. They are used here only to describe compatibility.
+
+Third-party software
+--------------------
+C3 does not bundle or redistribute Claude Code. The runtime Dockerfile installs
+the official `@anthropic-ai/claude-code` npm package when the image is built in
+the user's own AWS account. Its use is governed by Anthropic's terms:
+https://code.claude.com/docs/en/legal-and-compliance
+
+The runtime image also installs, at build time:
+- `mcp-proxy-for-aws-cli` (Apache-2.0), https://github.com/aws/mcp-proxy-for-aws
+- `uv` (Apache-2.0 / MIT), https://github.com/astral-sh/uv
+- the official Node.js Docker image and Debian packages
+- optionally the AWS CLI v2, https://aws.amazon.com/cli/
+- `@aws-sdk/client-s3` (Apache-2.0) for optional session storage

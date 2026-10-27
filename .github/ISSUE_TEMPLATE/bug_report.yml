@@ -1,0 +1,30 @@
+name: Bug report
+description: Something does not synthesize, deploy or behave as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the exact error message. Remove account IDs and secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest CDK snippet and workspace that reproduces it.
+      render: ts
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: c3-aws, aws-cdk-lib, Claude Code (claudeCodeVersion), Node.js
+    validations:
+      required: true
+  - type: input
+    id: region
+    attributes:
+      label: AWS region

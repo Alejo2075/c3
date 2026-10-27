@@ -1,0 +1,11 @@
+src/
+test/
+examples/
+docs/
+scripts/
+.github/
+.changeset/
+*.tsbuildinfo
+tsconfig*.json
+eslint.config.mjs
+vitest.config.mts

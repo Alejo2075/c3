@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose a connector or API change
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you need to do that C3 makes hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: API sketch, IAM actions involved, and how access stays least-privilege.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is about the boundary between Claude Code and AWS (see CLAUDE.md, non-goals)
+          required: true

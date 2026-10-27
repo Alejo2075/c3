@@ -1,0 +1,68 @@
+{
+  "name": "c3-aws",
+  "version": "0.0.0",
+  "description": "C3 (Claude Code Cloud): build Claude Code agents, connect AWS services, deploy to Amazon Bedrock AgentCore with AWS CDK.",
+  "license": "MIT",
+  "author": "Alejandro Santana",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Alejo2075/c3.git"
+  },
+  "homepage": "https://github.com/Alejo2075/c3#readme",
+  "bugs": "https://github.com/Alejo2075/c3/issues",
+  "keywords": [
+    "aws-cdk",
+    "cdk-construct",
+    "claude-code",
+    "bedrock",
+    "agentcore",
+    "mcp"
+  ],
+  "type": "commonjs",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "runtime-assets",
+    "!**/*.test.*",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"runtime-assets/**/*.mjs\" \"scripts/**/*.mjs\" \"examples/**/*.{ts,mjs}\"",
+    "test": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "synth:examples": "npm run build && node scripts/synth-examples.mjs",
+    "prepack": "npm run build",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"runtime-assets/**/*.mjs\" \"scripts/**/*.mjs\" \"examples/**/*.{ts,mjs}\""
+  },
+  "peerDependencies": {
+    "aws-cdk-lib": "^2.275.0",
+    "constructs": "^10.5.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-bedrock-agentcore": "^3.1157.0",
+    "@aws-sdk/client-dynamodb": "^3.1157.0",
+    "@aws-sdk/client-eventbridge": "^3.1157.0",
+    "@aws-sdk/client-s3": "^3.1157.0",
+    "@aws-sdk/client-sqs": "^3.1157.0",
+    "@aws-sdk/lib-dynamodb": "^3.1157.0",
+    "@changesets/cli": "^3.0.3",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "aws-cdk": "^2.1146.1",
+    "aws-cdk-lib": "^2.275.0",
+    "constructs": "^10.8.1",
+    "eslint": "^10.13.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
+  }
+}
