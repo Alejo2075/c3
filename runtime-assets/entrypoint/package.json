@@ -1,0 +1,10 @@
+{
+  "name": "c3-runtime-entrypoint",
+  "private": true,
+  "type": "module",
+  "description": "Minimal AgentCore Runtime HTTP adapter that forwards requests to the Claude Code CLI.",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1157.0"
+  }
+}
