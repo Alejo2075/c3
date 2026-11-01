@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/c3-aws"><img src="https://img.shields.io/npm/v/c3-aws.svg" alt="npm" /></a>
   <a href="https://github.com/Alejo2075/c3/actions/workflows/ci.yml"><img src="https://github.com/Alejo2075/c3/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
 </p>
@@ -35,57 +36,98 @@ least-privilege access to your AWS resources.
 
 > [!IMPORTANT]
 > C3 is an independent project. It is **not** affiliated with or endorsed by Anthropic or AWS.
-> It is early-stage software (`0.x`): read [Status](#status) before using it in production. The
-> project and construct names may change before a stable release (see
-> [Naming](docs/limitations.md#naming)).
+> It follows semantic versioning; while it is `0.x`, minor releases may include breaking changes.
+> See [docs/limitations.md](docs/limitations.md) for scope and known limitations.
 
-## Quick start
+## Install
 
 ```bash
 npm install c3-aws aws-cdk-lib constructs
 ```
 
-> The package is not on npm yet. Until the first release, clone this repository and run
-> `npm ci && npm run build`.
+Package: [npmjs.com/package/c3-aws](https://www.npmjs.com/package/c3-aws). To invoke agents from
+code, also install `@aws-sdk/client-bedrock-agentcore` (see [Invoking from code](#invoking-from-code)).
 
-```ts
-import { App, Stack } from 'aws-cdk-lib';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as s3 from 'aws-cdk-lib/aws-s3';
-import { C3Agent } from 'c3-aws';
+**Requirements**
 
-const app = new App();
-const stack = new Stack(app, 'Agents');
+- Node.js 20 or later and an AWS CDK v2 app (TypeScript).
+- An AWS account [bootstrapped for CDK](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html),
+  in a region where Amazon Bedrock AgentCore is available.
+- Access to a Claude model in Amazon Bedrock for that region.
+- Docker running on the machine that runs `cdk deploy`. The runtime image is built for ARM64.
 
-const reviewer = new C3Agent(stack, 'Reviewer', {
-  source: './agents/reviewer', // a normal Claude Code workspace
-  model: 'sonnet',
-});
+## Getting started
 
-// IAM only: lets Bash/SDK scripts inside Claude Code read these objects. No tool is created.
-const documents = new s3.Bucket(stack, 'Documents');
-reviewer.grant(documents, {
-  actions: ['s3:ListBucket', 's3:GetObject'],
-  prefixes: ['documents/*'],
-});
+1. **Create a CDK app** (skip if you have one):
 
-// An MCP tool backed by your Lambda function, served through AgentCore Gateway.
-declare const notification: lambda.IFunction;
-reviewer.connect(notification, {
-  name: 'send_notification',
-  description: 'Send a user notification',
-  inputSchema: {
-    type: 'object',
-    properties: { message: { type: 'string', description: 'Notification text' } },
-    required: ['message'],
-  },
-});
-```
+   ```bash
+   mkdir my-agents && cd my-agents
+   npx cdk init app --language typescript
+   npm install c3-aws
+   ```
 
-```bash
-npx cdk deploy                  # needs Docker (ARM64 builds) and a bootstrapped account
-node scripts/invoke.mjs <AgentRuntimeArn> "Review the latest report"   # or use c3-aws/client
-```
+2. **Create a Claude Code workspace** for the agent. It is a normal Claude Code project:
+
+   ```bash
+   mkdir -p agents/reviewer
+   echo "You review documents and answer concisely." > agents/reviewer/CLAUDE.md
+   ```
+
+3. **Declare the agent** in your stack:
+
+   ```ts
+   import { App, Stack } from 'aws-cdk-lib';
+   import * as lambda from 'aws-cdk-lib/aws-lambda';
+   import * as s3 from 'aws-cdk-lib/aws-s3';
+   import { C3Agent } from 'c3-aws';
+
+   const app = new App();
+   const stack = new Stack(app, 'Agents');
+
+   const reviewer = new C3Agent(stack, 'Reviewer', {
+     source: './agents/reviewer', // a normal Claude Code workspace
+     model: 'sonnet',
+   });
+
+   // IAM only: lets Bash/SDK scripts inside Claude Code read these objects. No tool is created.
+   const documents = new s3.Bucket(stack, 'Documents');
+   reviewer.grant(documents, {
+     actions: ['s3:ListBucket', 's3:GetObject'],
+     prefixes: ['documents/*'],
+   });
+
+   // An MCP tool backed by your Lambda function, served through AgentCore Gateway.
+   declare const notification: lambda.IFunction;
+   reviewer.connect(notification, {
+     name: 'send_notification',
+     description: 'Send a user notification',
+     inputSchema: {
+       type: 'object',
+       properties: { message: { type: 'string', description: 'Notification text' } },
+       required: ['message'],
+     },
+   });
+   ```
+
+4. **Deploy** with the standard CDK commands:
+
+   ```bash
+   npx cdk synth
+   npx cdk diff
+   npx cdk deploy
+   ```
+
+5. **Invoke the agent** with the runtime ARN from the deployed stack (for example
+   `reviewer.runtime.agentRuntimeArn`, which you can export as a `CfnOutput`):
+
+   ```ts
+   import { invokeAgent } from 'c3-aws/client';
+
+   const result = await invokeAgent({ agentRuntimeArn, prompt: 'Review the latest report' });
+   console.log(result.response);
+   ```
+
+6. **Clean up** when you are done: `npx cdk destroy`.
 
 Your workspace stays a native Claude Code project:
 
@@ -206,21 +248,13 @@ active), Bedrock model tokens, ECR image storage, CloudWatch Logs, and, when you
 AgentCore Gateway plus Lambda adapters. See [docs/costs.md](docs/costs.md). Run `cdk destroy` when
 you are done.
 
-## Status
+## Documentation
 
-| Area                                                                         | State                                                                    |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `C3Agent`, workspace packaging, IAM, Gateway wiring, connectors              | **Implemented**, unit-tested with CDK assertions                         |
-| Runtime entrypoint on the Claude Agent SDK, `outputSchema`, `auditToolCalls` | **Implemented**, unit-tested; **not run** against the real SDK           |
-| `c3-aws/client` (`invokeAgent`, `invokeAgentStream`)                         | **Implemented**, unit-tested with a fake AWS client                      |
-| Examples synthesize (`npm run synth:examples`)                               | **Implemented**, run in CI                                               |
-| Docker image build, deploy, invoke, Lambda tool round-trip                   | **Not yet verified on AWS.** An opt-in test exists in `test/integration` |
-| Claude on Bedrock through the Agent SDK                                      | **Unverified** until the integration test passes                         |
-| Claude Code → Gateway auth through `mcp-proxy-for-aws`                       | **Unverified** until the integration test passes                         |
-| Session durability (`sessionStorage`)                                        | **Experimental**                                                         |
-| npm release                                                                  | **Not published yet**                                                    |
-
-Known limitations are listed in [docs/limitations.md](docs/limitations.md).
+- [Architecture](docs/architecture.md): components, request flow, identities
+- [Connections](docs/connections.md): every connector, its options and the IAM it creates
+- [Security](docs/security.md): permissions, secrets, prompt injection
+- [Costs](docs/costs.md): what `cdk deploy` creates and bills
+- [Limitations](docs/limitations.md): scope and known limitations
 
 ## Examples
 
@@ -234,7 +268,7 @@ Known limitations are listed in [docs/limitations.md](docs/limitations.md).
 npm ci
 npm run typecheck && npm run lint && npm test
 npm run synth:examples
-C3_INTEGRATION=1 AWS_PROFILE=dev npm run test:integration   # billable, opt-in
+C3_INTEGRATION=1 AWS_PROFILE=dev npm run test:integration   # deploys real resources, opt-in
 ```
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and
