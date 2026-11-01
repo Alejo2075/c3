@@ -7,9 +7,11 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/c3-aws"><img src="https://img.shields.io/npm/v/c3-aws.svg" alt="npm" /></a>
-  <a href="https://github.com/Alejo2075/c3/actions/workflows/ci.yml"><img src="https://github.com/Alejo2075/c3/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
+  <a href="https://www.npmjs.com/package/c3-aws"><img src="https://img.shields.io/npm/v/c3-aws?style=flat-square&color=D97757&labelColor=2B2523&logo=claude&logoColor=D97757&label=npm" alt="npm" /></a>
+  <a href="https://github.com/Alejo2075/c3/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Alejo2075/c3/ci.yml?branch=main&style=flat-square&color=D97757&labelColor=2B2523&label=CI" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-D97757?style=flat-square&labelColor=2B2523" alt="MIT License" /></a>
+  <a href="https://code.claude.com/docs/en/agent-sdk/overview"><img src="https://img.shields.io/badge/Claude%20Agent%20SDK-powered-D97757?style=flat-square&labelColor=2B2523&logo=claude&logoColor=D97757" alt="Claude Agent SDK" /></a>
+  <a href="https://docs.aws.amazon.com/cdk/v2/guide/home.html"><img src="https://img.shields.io/badge/AWS%20CDK-v2-D97757?style=flat-square&labelColor=2B2523" alt="AWS CDK v2" /></a>
 </p>
 
 ---
