@@ -19,6 +19,9 @@ you, and the risks that remain.
 - **Headless permissions.** Claude Code runs with `permissionMode: 'dontAsk'` by default: a tool
   runs only if your `.claude/settings.json` or `allowedTools` pre-approves it. `bypassPermissions`
   has to be set explicitly.
+- **Tool call audit.** With `auditToolCalls` (default), the entrypoint uses Agent SDK hooks to log
+  `tool.call` events with the tool name, outcome (`ok`, `failed`, `denied`) and duration. Tool inputs,
+  outputs and error text are never logged.
 - **Non-root container.** Claude Code runs as the `node` user.
 - **Secrets.**
   - The construct rejects environment variable names that look like credentials, because

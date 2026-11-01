@@ -11,6 +11,7 @@ not yet proven against real AWS) or **planned**.
 - `grant()` for S3, DynamoDB, Lambda, SQS, SNS and EventBridge.
 - `connect()` for Lambda, S3, DynamoDB, SQS and EventBridge. `connectOpenApi()` and
   `connectMcpServer()` wrap the official targets.
+- `c3-aws/client` (`invokeAgent`, `invokeAgentStream`), `outputSchema` and `auditToolCalls`.
 - Runtime options: permission mode, allowed and disallowed tools, budget, timeout, VPC, lifecycle,
   platform version, tracing, application logs, named endpoint.
 - The opt-in integration test (`test/integration`).
@@ -21,7 +22,11 @@ not yet proven against real AWS) or **planned**.
   AgentCore Runtime, including Claude on Bedrock through the SDK.
 - Claude Code reaching the Gateway through `mcp-proxy-for-aws-cli` with the runtime role's
   credentials.
-- `--resume` continuity across invocations of the same runtime session.
+- `resume` continuity across invocations of the same runtime session.
+- `outputSchema` (SDK `outputFormat`) and the `auditToolCalls` hooks against the real SDK. They are
+  unit-tested with the options and hook inputs the SDK types describe. With `outputSchema`, the
+  answer is in `structuredOutput` and `response` may be empty.
+- `c3-aws/client` against a real runtime. It is unit-tested with a fake AWS client.
 - `sessionStorage` restore and save across microVMs (**experimental**).
 - `PlatformVersion.V2`: availability depends on account and region.
 - That the `AWS_REGION` and credentials are available inside the container the way the entrypoint

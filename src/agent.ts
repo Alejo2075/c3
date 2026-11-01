@@ -39,6 +39,9 @@ import { grantResource, type GrantableResource, type GrantOptions } from './secu
 import { inspectWorkspace, looksSecret } from './workspace/workspace';
 
 /** Claude Code permission modes accepted by the Agent SDK. */
+/** Environment variables are limited in size; keep the schema well below that. */
+const MAX_OUTPUT_SCHEMA_CHARS = 4000;
+
 export enum PermissionMode {
   /** Deny every tool that is not pre-approved by settings or `allowedTools`. The C3 default. */
   DONT_ASK = 'dontAsk',
@@ -89,6 +92,18 @@ export interface C3AgentProps {
   readonly disallowedTools?: readonly string[];
   /** Per-invocation spend cap passed to `--max-budget-usd`. */
   readonly maxBudgetUsd?: number;
+  /**
+   * JSON Schema for the agent's final answer. When set, every invocation
+   * returns the validated object as `structuredOutput`.
+   * @default - free-form text
+   */
+  readonly outputSchema?: Readonly<Record<string, unknown>>;
+  /**
+   * Log the name, outcome and duration of every tool call to the runtime logs.
+   * Tool inputs and outputs are never logged.
+   * @default true
+   */
+  readonly auditToolCalls?: boolean;
   /** Kill an invocation after this long. @default Duration.minutes(15) */
   readonly invocationTimeout?: Duration;
   /** Additional non-secret environment variables for Claude Code. */
@@ -220,6 +235,25 @@ export class C3Agent extends Construct implements iam.IGrantable {
     if (props.maxBudgetUsd !== undefined && !(props.maxBudgetUsd > 0)) {
       throw new C3ValidationError('maxBudgetUsd must be a positive number.');
     }
+    if (props.outputSchema !== undefined) {
+      const serialized = JSON.stringify(props.outputSchema);
+      if (
+        typeof props.outputSchema !== 'object' ||
+        props.outputSchema === null ||
+        Array.isArray(props.outputSchema) ||
+        props.outputSchema.type !== 'object'
+      ) {
+        throw new C3ValidationError(
+          'outputSchema must be a JSON Schema object with type "object".',
+        );
+      }
+      if (serialized.length > MAX_OUTPUT_SCHEMA_CHARS) {
+        throw new C3ValidationError(
+          `outputSchema is ${serialized.length} characters; the limit is ${MAX_OUTPUT_SCHEMA_CHARS}.`,
+        );
+      }
+      env.C3_OUTPUT_SCHEMA = serialized;
+    }
     const timeout = props.invocationTimeout ?? Duration.minutes(15);
     if (timeout.toSeconds() < 10 || timeout.toSeconds() > 8 * 3600) {
       throw new C3ValidationError('invocationTimeout must be between 10 seconds and 8 hours.');
@@ -232,6 +266,7 @@ export class C3Agent extends Construct implements iam.IGrantable {
     if (props.allowedTools?.length) env.C3_ALLOWED_TOOLS = props.allowedTools.join(',');
     if (props.disallowedTools?.length) env.C3_DISALLOWED_TOOLS = props.disallowedTools.join(',');
     if (props.maxBudgetUsd !== undefined) env.C3_MAX_BUDGET_USD = String(props.maxBudgetUsd);
+    env.C3_AUDIT_TOOL_CALLS = String(props.auditToolCalls ?? true);
     if (props.sessionStorage) {
       env.C3_SESSION_BUCKET = props.sessionStorage.bucket.bucketName;
       env.C3_SESSION_PREFIX = props.sessionStorage.prefix ?? 'c3-sessions/';

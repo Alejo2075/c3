@@ -142,6 +142,8 @@ new C3Agent(stack, 'Agent', {
   permissionMode: PermissionMode.DONT_ASK, // default: only pre-approved tools run
   allowedTools: ['Read', 'Grep'],
   maxBudgetUsd: 2, // per invocation
+  outputSchema: { type: 'object', properties: { verdict: { type: 'string' } } }, // optional
+  auditToolCalls: true, // default: log tool names and outcomes, never inputs or outputs
   invocationTimeout: Duration.minutes(15),
   installAwsCli: false,
   network: RuntimeNetworkConfiguration.usingVpc(stack, { vpc }),
@@ -153,6 +155,29 @@ new C3Agent(stack, 'Agent', {
 });
 ```
 
+## Invoking from code
+
+`c3-aws/client` wraps `InvokeAgentRuntime` (it needs `@aws-sdk/client-bedrock-agentcore`, an optional peer
+dependency):
+
+```ts
+import { invokeAgent, invokeAgentStream } from 'c3-aws/client';
+
+const result = await invokeAgent({ agentRuntimeArn, prompt: 'Review the latest report' });
+console.log(result.response, result.totalCostUsd);
+
+// Continue the conversation and stream events as they happen.
+for await (const event of invokeAgentStream({
+  agentRuntimeArn,
+  prompt: 'Now summarize',
+  sessionId: result.sessionId,
+})) {
+  if (event.type === 'c3.result') console.log(event);
+}
+```
+
+With `outputSchema` set on the agent, `result.structuredOutput` holds the validated object.
+
 ## Security model
 
 - IAM has the final say. Claude Code permission rules are an extra layer on top of it, not a replacement.
@@ -160,7 +185,8 @@ new C3Agent(stack, 'Agent', {
   that are pre-approved in your settings or `allowedTools` can run.
 - Connected tools are read-only unless the connection is a write by nature (SQS, EventBridge), and
   even then it is scoped to one resource.
-- C3 rejects environment variables that look like secrets, and its runtime adapter never logs prompts or model output.
+- C3 rejects environment variables that look like secrets, and its runtime adapter never logs prompts or model output. With `auditToolCalls` it logs only the
+  name, outcome and duration of each tool call.
 - Tool output and workspace files can carry prompt injection. Read [docs/security.md](docs/security.md).
 
 ## Costs

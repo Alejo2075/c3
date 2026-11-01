@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import {
   RequestError,
   SESSION_HEADER,
+  auditHooks,
   buildQueryOptions,
   parseInvocation,
   readConfig,
@@ -93,6 +94,7 @@ async function invoke(req, res) {
     env: { ...process.env },
     stream: request.stream,
     abortController,
+    hooks: config.auditToolCalls ? auditHooks(log) : undefined,
   });
   options.stderr = (chunk) => {
     stderr = (stderr + chunk).slice(-4000);

@@ -36,9 +36,20 @@ export function readConfig(env) {
     gatewayUrl:
       env.C3_GATEWAY_URL && env.C3_GATEWAY_URL !== 'none' ? env.C3_GATEWAY_URL : undefined,
     region: env.AWS_REGION || env.AWS_DEFAULT_REGION || env.C3_AWS_REGION || undefined,
+    outputSchema: parseSchema(env.C3_OUTPUT_SCHEMA),
+    auditToolCalls: env.C3_AUDIT_TOOL_CALLS !== 'false',
     sessionBucket: env.C3_SESSION_BUCKET || undefined,
     sessionPrefix: env.C3_SESSION_PREFIX || '',
   };
+}
+
+function parseSchema(value) {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new Error('C3_OUTPUT_SCHEMA is not valid JSON');
+  }
 }
 
 function parseList(value) {
@@ -96,7 +107,10 @@ export function gatewayMcpServers(gatewayUrl, region) {
  * the same Claude Code engine as the CLI, so the workspace's CLAUDE.md,
  * settings, skills, subagents and hooks load through `settingSources`.
  */
-export function buildQueryOptions(config, { sessionId, resume, env, stream, abortController }) {
+export function buildQueryOptions(
+  config,
+  { sessionId, resume, env, stream, abortController, hooks },
+) {
   const options = {
     cwd: config.workspaceDir,
     env,
@@ -109,6 +123,9 @@ export function buildQueryOptions(config, { sessionId, resume, env, stream, abor
     permissionMode: config.permissionMode === 'manual' ? 'default' : config.permissionMode,
     includePartialMessages: stream,
   };
+  if (hooks) options.hooks = hooks;
+  if (config.outputSchema)
+    options.outputFormat = { type: 'json_schema', schema: config.outputSchema };
   if (config.permissionMode === 'bypassPermissions') options.allowDangerouslySkipPermissions = true;
   if (config.model) options.model = config.model;
 
@@ -148,5 +165,28 @@ export function summarize(events) {
     durationMs: result.duration_ms,
     totalCostUsd: result.total_cost_usd,
     usage: result.usage,
+    structuredOutput: result.structured_output,
+  };
+}
+
+/**
+ * Agent SDK hooks that log which tools ran, how they ended and how long they
+ * took. Tool inputs, outputs and error text are deliberately never logged: they
+ * can contain customer data or secrets.
+ */
+export function auditHooks(log) {
+  const record = (event, outcome) => async (input) => {
+    log(event, {
+      tool: input.tool_name,
+      outcome,
+      durationMs: input.duration_ms,
+      interrupted: input.is_interrupt,
+    });
+    return {};
+  };
+  return {
+    PostToolUse: [{ hooks: [record('tool.call', 'ok')] }],
+    PostToolUseFailure: [{ hooks: [record('tool.call', 'failed')] }],
+    PermissionDenied: [{ hooks: [record('tool.call', 'denied')] }],
   };
 }

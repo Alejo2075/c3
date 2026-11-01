@@ -165,3 +165,30 @@ describe('C3Agent', () => {
     expect(actions).toContain('bedrock-agentcore:InvokeAgentRuntime');
   });
 });
+
+describe('outputSchema and auditToolCalls', () => {
+  const schema = { type: 'object', properties: { verdict: { type: 'string' } } };
+
+  test('are passed to the runtime as environment variables', () => {
+    const stack = makeStack();
+    new C3Agent(stack, 'A', { source: makeWorkspace(), outputSchema: schema });
+    const runtimes = Template.fromStack(stack).findResources('AWS::BedrockAgentCore::Runtime');
+    const env = Object.values(runtimes)[0]!.Properties.EnvironmentVariables;
+    expect(JSON.parse(env.C3_OUTPUT_SCHEMA)).toEqual(schema);
+    expect(env.C3_AUDIT_TOOL_CALLS).toBe('true');
+  });
+
+  test('reject schemas that are not objects or are too large', () => {
+    const stack = makeStack();
+    expect(
+      () => new C3Agent(stack, 'B', { source: makeWorkspace(), outputSchema: { type: 'string' } }),
+    ).toThrow(/type "object"/);
+    expect(
+      () =>
+        new C3Agent(stack, 'C', {
+          source: makeWorkspace(),
+          outputSchema: { type: 'object', description: 'x'.repeat(5000) },
+        }),
+    ).toThrow(/limit is 4000/);
+  });
+});
