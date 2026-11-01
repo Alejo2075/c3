@@ -8,7 +8,6 @@
 
 <p align="center">
   <a href="https://github.com/Alejo2075/c3/actions/workflows/ci.yml"><img src="https://github.com/Alejo2075/c3/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://www.npmjs.com/package/c3-aws"><img src="https://img.shields.io/npm/v/c3-aws.svg" alt="npm" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
 </p>
 
@@ -17,7 +16,9 @@
 **C3 (Claude Code Cloud)** is an open-source AWS CDK construct library that deploys a real
 [Claude Code](https://code.claude.com/docs/en/overview) workspace to
 [Amazon Bedrock AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/), with Claude
-models on Amazon Bedrock. You give the agent explicit, least-privilege access to your AWS resources.
+models on Amazon Bedrock. It runs Claude Code through the official
+[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview). You give the agent explicit,
+least-privilege access to your AWS resources.
 
 - **Reuse your workspace as is.** `CLAUDE.md`, `.claude/agents`, `.claude/skills`, `settings.json`,
   hooks and `.mcp.json` keep working. There is no new agent DSL.
@@ -25,18 +26,27 @@ models on Amazon Bedrock. You give the agent explicit, least-privilege access to
   `cdk deploy`.
 - **Explicit AWS access.** `grant()` adds IAM permissions. `connect()` exposes specific operations
   as MCP tools through AgentCore Gateway. Neither does anything you did not ask for.
+- **Invoke it from code.** `c3-aws/client` wraps `InvokeAgentRuntime` with streaming, sessions and
+  optional structured output (`outputSchema`).
+- **Auditable.** Every tool call is logged by name, outcome and duration, never with its inputs or
+  outputs.
 - **Open underneath.** The runtime, role, gateway and targets are all regular CDK constructs, and
   you can reach every one of them.
 
 > [!IMPORTANT]
 > C3 is an independent project. It is **not** affiliated with or endorsed by Anthropic or AWS.
-> It is early-stage software (`0.x`): read [Status](#status) before using it in production.
+> It is early-stage software (`0.x`): read [Status](#status) before using it in production. The
+> project and construct names may change before a stable release (see
+> [Naming](docs/limitations.md#naming)).
 
 ## Quick start
 
 ```bash
 npm install c3-aws aws-cdk-lib constructs
 ```
+
+> The package is not on npm yet. Until the first release, clone this repository and run
+> `npm ci && npm run build`.
 
 ```ts
 import { App, Stack } from 'aws-cdk-lib';
@@ -74,7 +84,7 @@ reviewer.connect(notification, {
 
 ```bash
 npx cdk deploy                  # needs Docker (ARM64 builds) and a bootstrapped account
-node scripts/invoke.mjs <AgentRuntimeArn> "Review the latest report"
+node scripts/invoke.mjs <AgentRuntimeArn> "Review the latest report"   # or use c3-aws/client
 ```
 
 Your workspace stays a native Claude Code project:
@@ -198,13 +208,17 @@ you are done.
 
 ## Status
 
-| Area                                                            | State                                                                    |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `C3Agent`, workspace packaging, IAM, Gateway wiring, connectors | **Implemented**, unit-tested with CDK assertions                         |
-| Examples synthesize (`npm run synth:examples`)                  | **Implemented**, run in CI                                               |
-| Docker image build, deploy, invoke, Lambda tool round-trip      | **Not yet verified on AWS.** An opt-in test exists in `test/integration` |
-| Claude Code → Gateway auth through `mcp-proxy-for-aws`          | **Unverified** until the integration test passes                         |
-| Session durability (`sessionStorage`)                           | **Experimental**                                                         |
+| Area                                                                         | State                                                                    |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `C3Agent`, workspace packaging, IAM, Gateway wiring, connectors              | **Implemented**, unit-tested with CDK assertions                         |
+| Runtime entrypoint on the Claude Agent SDK, `outputSchema`, `auditToolCalls` | **Implemented**, unit-tested; **not run** against the real SDK           |
+| `c3-aws/client` (`invokeAgent`, `invokeAgentStream`)                         | **Implemented**, unit-tested with a fake AWS client                      |
+| Examples synthesize (`npm run synth:examples`)                               | **Implemented**, run in CI                                               |
+| Docker image build, deploy, invoke, Lambda tool round-trip                   | **Not yet verified on AWS.** An opt-in test exists in `test/integration` |
+| Claude on Bedrock through the Agent SDK                                      | **Unverified** until the integration test passes                         |
+| Claude Code → Gateway auth through `mcp-proxy-for-aws`                       | **Unverified** until the integration test passes                         |
+| Session durability (`sessionStorage`)                                        | **Experimental**                                                         |
+| npm release                                                                  | **Not published yet**                                                    |
 
 Known limitations are listed in [docs/limitations.md](docs/limitations.md).
 
@@ -228,6 +242,7 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and
 
 ## License
 
-[MIT](LICENSE) © Alejandro Santana. Claude Code itself is not distributed with this project; it is
-installed from npm under [Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance)
-when you build the image. See [NOTICE](NOTICE).
+[MIT](LICENSE) © Alejandro Santana. The Claude Agent SDK and the Claude Code binary it ships are not
+distributed with this project; they are installed from npm under
+[Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance) when you build the image.
+See [NOTICE](NOTICE).
