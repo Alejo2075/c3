@@ -1,21 +1,19 @@
 // C3 runtime entrypoint: implements the AgentCore Runtime HTTP contract
 // (POST /invocations, GET /ping on 0.0.0.0:8080) and forwards each request to
-// the official Claude Code CLI in noninteractive mode. This is integration
-// glue only; the agent loop is Claude Code's.
-import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+// the official Claude Agent SDK (`query()`), which runs Claude Code. This is
+// integration glue only; the agent loop is Claude Code's.
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   RequestError,
   SESSION_HEADER,
-  buildClaudeArgs,
-  gatewayMcpConfig,
+  buildQueryOptions,
   parseInvocation,
   readConfig,
   sessionUuid,
-  splitLines,
   summarize,
 } from './lib.mjs';
 import { restoreSession, saveSession } from './sessions.mjs';
@@ -30,15 +28,8 @@ const knownSessions = new Set();
 let busy = false;
 let statusChangedAt = Math.floor(Date.now() / 1000);
 
-const mcpConfigPath = config.gatewayUrl ? writeMcpConfig() : undefined;
-
-function writeMcpConfig() {
-  const dir = join(homedir(), '.c3');
-  mkdirSync(dir, { recursive: true });
-  const file = join(dir, 'gateway-mcp.json');
-  writeFileSync(file, JSON.stringify(gatewayMcpConfig(config.gatewayUrl, config.region), null, 2));
-  return file;
-}
+// Time between asking the SDK to interrupt a turn and killing the process.
+const INTERRUPT_GRACE_MS = 10_000;
 
 function setBusy(value) {
   if (busy !== value) {
@@ -94,80 +85,65 @@ async function invoke(req, res) {
     await restoreSession(config, sessionId);
   }
   const resume = sessionId ? knownSessions.has(sessionId) || sessionHasHistory(sessionId) : false;
-  const args = buildClaudeArgs(config, {
-    prompt: request.prompt,
+  const abortController = new AbortController();
+  let stderr = '';
+  const options = buildQueryOptions(config, {
     sessionId,
     resume,
-    mcpConfigPath,
+    env: { ...process.env },
+    stream: request.stream,
+    abortController,
   });
+  options.stderr = (chunk) => {
+    stderr = (stderr + chunk).slice(-4000);
+  };
 
   const started = Date.now();
   log('invocation.start', { sessionId, resume, stream: request.stream });
-
-  const child = spawn('claude', args, {
-    cwd: config.workspaceDir,
-    env: process.env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const timer = setTimeout(() => {
-    log('invocation.timeout', { sessionId, timeoutSeconds: config.timeoutSeconds });
-    child.kill('SIGTERM');
-  }, config.timeoutSeconds * 1000);
-
-  const events = [];
-  let buffer = '';
-  let stderr = '';
 
   if (request.stream) {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
   }
 
-  child.stdout.setEncoding('utf8');
-  child.stdout.on('data', (chunk) => {
-    const { lines, rest } = splitLines(buffer, chunk);
-    buffer = rest;
-    for (const line of lines) {
-      let event;
-      try {
-        event = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      events.push(event);
-      if (request.stream) res.write(`data: ${JSON.stringify(event)}\n\n`);
-    }
-  });
-  child.stderr.setEncoding('utf8');
-  child.stderr.on('data', (chunk) => {
-    stderr = (stderr + chunk).slice(-4000);
-  });
+  const run = query({ prompt: request.prompt, options });
+  // Interrupt first so the turn ends with a result (and its cost); abort only
+  // if the process does not stop in time.
+  let hardKill;
+  const timer = setTimeout(() => {
+    log('invocation.timeout', { sessionId, timeoutSeconds: config.timeoutSeconds });
+    run.interrupt().catch(() => {});
+    hardKill = setTimeout(() => abortController.abort(), INTERRUPT_GRACE_MS);
+  }, config.timeoutSeconds * 1000);
 
-  const exitCode = await new Promise((resolve) => {
-    child.on('close', resolve);
-    child.on('error', (err) => {
-      stderr += String(err);
-      resolve(-1);
-    });
-  });
-  clearTimeout(timer);
+  const results = [];
+  let failure;
+  try {
+    for await (const message of run) {
+      if (message.type === 'result') results.push(message);
+      if (request.stream) res.write(`data: ${JSON.stringify(message)}\n\n`);
+    }
+  } catch (err) {
+    failure = err;
+  } finally {
+    clearTimeout(timer);
+    clearTimeout(hardKill);
+  }
 
   if (sessionId) {
     knownSessions.add(sessionId);
     if (config.sessionBucket) await saveSession(config, sessionId);
   }
 
-  const summary = summarize(events);
-  if (exitCode !== 0 && summary.status === 'success') summary.status = 'error';
-  if (summary.status === 'error' && !summary.error) {
-    summary.error = `Claude Code exited with code ${exitCode}.`;
-  }
+  const summary = summarize(results);
+  if (failure && summary.status === 'success') summary.status = 'error';
+  if (summary.status === 'error' && failure) summary.error = 'Claude Code stopped unexpectedly.';
   log('invocation.end', {
     sessionId,
-    exitCode,
     status: summary.status,
     durationMs: Date.now() - started,
     totalCostUsd: summary.totalCostUsd,
-    stderrTail: exitCode !== 0 ? stderr.slice(-1000) : undefined,
+    errorName: failure?.name,
+    stderrTail: summary.status === 'error' ? stderr.slice(-1000) : undefined,
   });
 
   if (request.stream) {
@@ -222,5 +198,5 @@ const server = createServer((req, res) => {
 
 server.requestTimeout = 0;
 server.listen(PORT, '0.0.0.0', () =>
-  log('server.listening', { port: PORT, gateway: Boolean(mcpConfigPath) }),
+  log('server.listening', { port: PORT, gateway: Boolean(config.gatewayUrl) }),
 );

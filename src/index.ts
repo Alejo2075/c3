@@ -1,11 +1,7 @@
-export { ClaudeCodeAgent, PermissionMode } from './claude-code-agent';
-export type {
-  ApplicationLogsOptions,
-  ClaudeCodeAgentProps,
-  SessionStorageOptions,
-} from './claude-code-agent';
+export { C3Agent, PermissionMode } from './agent';
+export type { ApplicationLogsOptions, C3AgentProps, SessionStorageOptions } from './agent';
 export { ClaudeModel } from './runtime/models';
-export { DEFAULT_CLAUDE_CODE_VERSION } from './runtime/artifact';
+export { DEFAULT_AGENT_SDK_VERSION } from './runtime/artifact';
 export { AgentToolGateway, GATEWAY_MCP_SERVER_NAME } from './gateway/agent-gateway';
 export type { JsonSchema, JsonSchemaType, ObjectJsonSchema, ToolSpec } from './gateway/tool-schema';
 export type { ConnectionOptions, ToolConnection } from './connections/types';

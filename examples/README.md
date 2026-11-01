@@ -3,11 +3,11 @@
 Each example is an ordinary CDK app. Inside this repository, they import `c3-aws` straight from
 `src/` through the root `tsconfig.json`. In your own project, run `npm install c3-aws` instead.
 
-| Example | Shows | Billable resources |
-|---|---|---|
-| [hello-agent](hello-agent) | The smallest agent | Runtime, ECR, Bedrock tokens |
-| [lambda-tool](lambda-tool) | A Lambda function exposed as an MCP tool | + Gateway, Lambda |
-| [aws-data](aws-data) | Read-only S3 and DynamoDB tools, plus `grant()` | + S3, DynamoDB, adapters |
+| Example                    | Shows                                           | Billable resources           |
+| -------------------------- | ----------------------------------------------- | ---------------------------- |
+| [hello-agent](hello-agent) | The smallest agent                              | Runtime, ECR, Bedrock tokens |
+| [lambda-tool](lambda-tool) | A Lambda function exposed as an MCP tool        | + Gateway, Lambda            |
+| [aws-data](aws-data)       | Read-only S3 and DynamoDB tools, plus `grant()` | + S3, DynamoDB, adapters     |
 
 ```bash
 cd examples/hello-agent

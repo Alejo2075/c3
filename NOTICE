@@ -10,9 +10,10 @@ its affiliates. They are used here only to describe compatibility.
 
 Third-party software
 --------------------
-C3 does not bundle or redistribute Claude Code. The runtime Dockerfile installs
-the official `@anthropic-ai/claude-code` npm package when the image is built in
-the user's own AWS account. Its use is governed by Anthropic's terms:
+C3 does not bundle or redistribute Claude Code or the Claude Agent SDK. The
+runtime Dockerfile installs the official `@anthropic-ai/claude-agent-sdk` npm
+package (which ships the Claude Code binary) when the image is built in the
+user's own AWS account. Its use is governed by Anthropic's terms:
 https://code.claude.com/docs/en/legal-and-compliance
 
 The runtime image also installs, at build time:

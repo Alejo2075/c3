@@ -1,18 +1,19 @@
 # syntax=docker/dockerfile:1
 # C3 runtime image for Amazon Bedrock AgentCore Runtime (ARM64, HTTP protocol).
 #
-# Claude Code is NOT redistributed by C3: it is installed from the official npm
-# package when this image is built in your own AWS account, under Anthropic's
-# license terms (https://code.claude.com/docs/en/legal-and-compliance).
+# The Claude Agent SDK (which ships the Claude Code binary) is NOT redistributed
+# by C3: it is installed from the official npm package when this image is built
+# in your own AWS account, under Anthropic's terms
+# (https://code.claude.com/docs/en/legal-and-compliance).
 FROM --platform=linux/arm64 ghcr.io/astral-sh/uv:0.13.6 AS uv
 
 FROM --platform=linux/arm64 node:22.23.4-bookworm-slim
 
-ARG CLAUDE_CODE_VERSION
+ARG CLAUDE_AGENT_SDK_VERSION
 ARG MCP_PROXY_FOR_AWS_VERSION=1.7.0
 ARG INSTALL_AWS_CLI=false
 
-RUN test -n "$CLAUDE_CODE_VERSION" || (echo "CLAUDE_CODE_VERSION build arg is required" && exit 1)
+RUN test -n "$CLAUDE_AGENT_SDK_VERSION" || (echo "CLAUDE_AGENT_SDK_VERSION build arg is required" && exit 1)
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -29,15 +30,17 @@ RUN if [ "$INSTALL_AWS_CLI" = "true" ]; then \
       && rm -rf /tmp/aws /tmp/awscliv2.zip; \
     fi
 
-# SigV4 bridge between Claude Code (stdio MCP) and the AgentCore Gateway.
+# SigV4 bridge between the Agent SDK (stdio MCP) and the AgentCore Gateway.
 ENV UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/uv-python
 RUN uv tool install "mcp-proxy-for-aws-cli==${MCP_PROXY_FOR_AWS_VERSION}"
 
-RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" && npm cache clean --force
-
 WORKDIR /opt/c3/entrypoint
 COPY entrypoint/package.json entrypoint/package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+# The SDK version is pinned by the construct (agentSdkVersion). It bundles the
+# matching native Claude Code binary, so no separate Claude Code install is needed.
+RUN npm ci --omit=dev --ignore-scripts \
+  && npm install --omit=dev --ignore-scripts --no-save "@anthropic-ai/claude-agent-sdk@${CLAUDE_AGENT_SDK_VERSION}" \
+  && npm cache clean --force
 COPY entrypoint/*.mjs ./
 
 COPY --chown=node:node workspace/ /workspace/

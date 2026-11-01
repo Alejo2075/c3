@@ -17,7 +17,7 @@ const PERMISSION_MODES = new Set([
 
 /**
  * Read the runtime configuration from environment variables set by the
- * ClaudeCodeAgent construct.
+ * C3Agent construct.
  */
 export function readConfig(env) {
   const permissionMode = env.C3_PERMISSION_MODE || 'dontAsk';
@@ -75,7 +75,7 @@ export class RequestError extends Error {
 }
 
 /**
- * Claude Code requires a UUID for --session-id. AgentCore session IDs are
+ * Claude Code requires a UUID for session IDs. AgentCore session IDs are
  * arbitrary strings, so derive a stable UUID from them.
  */
 export function sessionUuid(agentCoreSessionId) {
@@ -84,46 +84,54 @@ export function sessionUuid(agentCoreSessionId) {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-/** MCP configuration that reaches the AgentCore Gateway through the SigV4 proxy. */
-export function gatewayMcpConfig(gatewayUrl, region) {
+/** MCP servers that reach the AgentCore Gateway through the SigV4 proxy. */
+export function gatewayMcpServers(gatewayUrl, region) {
   const args = [gatewayUrl, '--service', 'bedrock-agentcore'];
   if (region) args.push('--region', region);
-  return {
-    mcpServers: {
-      [GATEWAY_SERVER_NAME]: {
-        command: 'mcp-proxy-for-aws-cli',
-        args,
-      },
-    },
-  };
-}
-
-/** Build the argument list for a noninteractive Claude Code invocation. */
-export function buildClaudeArgs(config, { prompt, sessionId, resume, mcpConfigPath }) {
-  const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
-  args.push('--permission-mode', config.permissionMode);
-  if (config.model) args.push('--model', config.model);
-
-  const allowed = [...config.allowedTools];
-  if (mcpConfigPath) {
-    args.push('--mcp-config', mcpConfigPath);
-    // Connecting a resource is the explicit opt-in for its tools.
-    allowed.push(`mcp__${GATEWAY_SERVER_NAME}`);
-  }
-  if (allowed.length > 0) args.push('--allowedTools', allowed.join(','));
-  if (config.disallowedTools.length > 0)
-    args.push('--disallowedTools', config.disallowedTools.join(','));
-  if (config.maxBudgetUsd !== undefined && Number.isFinite(config.maxBudgetUsd)) {
-    args.push('--max-budget-usd', String(config.maxBudgetUsd));
-  }
-  if (sessionId) {
-    args.push(resume ? '--resume' : '--session-id', sessionId);
-  }
-  return args;
+  return { [GATEWAY_SERVER_NAME]: { type: 'stdio', command: 'mcp-proxy-for-aws-cli', args } };
 }
 
 /**
- * Reduce Claude Code's stream-json events to the final invocation result.
+ * Build the Claude Agent SDK `query()` options for one invocation. The SDK runs
+ * the same Claude Code engine as the CLI, so the workspace's CLAUDE.md,
+ * settings, skills, subagents and hooks load through `settingSources`.
+ */
+export function buildQueryOptions(config, { sessionId, resume, env, stream, abortController }) {
+  const options = {
+    cwd: config.workspaceDir,
+    env,
+    abortController,
+    // Same sources as the CLI, plus Claude Code's own system prompt so the
+    // agent behaves as it does on a developer machine.
+    settingSources: ['user', 'project', 'local'],
+    systemPrompt: { type: 'preset', preset: 'claude_code' },
+    // "manual" is the CLI spelling of the SDK's "default" mode.
+    permissionMode: config.permissionMode === 'manual' ? 'default' : config.permissionMode,
+    includePartialMessages: stream,
+  };
+  if (config.permissionMode === 'bypassPermissions') options.allowDangerouslySkipPermissions = true;
+  if (config.model) options.model = config.model;
+
+  const allowedTools = [...config.allowedTools];
+  if (config.gatewayUrl) {
+    options.mcpServers = gatewayMcpServers(config.gatewayUrl, config.region);
+    // Connecting a resource is the explicit opt-in for its tools.
+    allowedTools.push(`mcp__${GATEWAY_SERVER_NAME}`);
+  }
+  if (allowedTools.length > 0) options.allowedTools = allowedTools;
+  if (config.disallowedTools.length > 0) options.disallowedTools = config.disallowedTools;
+  if (config.maxBudgetUsd !== undefined && Number.isFinite(config.maxBudgetUsd)) {
+    options.maxBudgetUsd = config.maxBudgetUsd;
+  }
+  if (sessionId) {
+    if (resume) options.resume = sessionId;
+    else options.sessionId = sessionId;
+  }
+  return options;
+}
+
+/**
+ * Reduce the Agent SDK messages to the final invocation result.
  * The last `result` event carries the answer, cost and usage.
  */
 export function summarize(events) {
@@ -132,20 +140,13 @@ export function summarize(events) {
     return { status: 'error', response: '', error: 'Claude Code exited without a result event.' };
   }
   return {
-    status: result.is_error ? 'error' : 'success',
+    status: result.is_error || result.subtype !== 'success' ? 'error' : 'success',
     response: typeof result.result === 'string' ? result.result : '',
+    error: result.subtype !== 'success' ? `Claude Code stopped: ${result.subtype}.` : undefined,
     sessionId: result.session_id,
     numTurns: result.num_turns,
     durationMs: result.duration_ms,
     totalCostUsd: result.total_cost_usd,
     usage: result.usage,
   };
-}
-
-/** Split a chunk stream into complete lines, returning the unfinished tail. */
-export function splitLines(buffer, chunk) {
-  const text = buffer + chunk;
-  const lines = text.split('\n');
-  const rest = lines.pop() ?? '';
-  return { lines: lines.filter((line) => line.trim() !== ''), rest };
 }

@@ -17,7 +17,7 @@ The framework should feel like a purpose-built, higher-level CDK construct—not
 A developer should be able to:
 
 1. Reuse an existing Claude Code workspace, including `CLAUDE.md`, `.claude/agents`, `.claude/skills`, `.claude/settings.json`, hooks, plugins, and MCP configuration as supported by Claude Code.
-2. Declare a `ClaudeCodeAgent` inside a normal TypeScript CDK application.
+2. Declare a `C3Agent` inside a normal TypeScript CDK application.
 3. Give the agent access to selected AWS resources with a small, explicit, least-privilege API.
 4. Expose selected resource operations as discoverable agent tools when appropriate.
 5. Deploy and manage the AWS infrastructure with standard CDK commands.
@@ -32,7 +32,7 @@ A developer should be able to:
 - **Primary language:** TypeScript, targeting Node.js.
 - **Infrastructure engine:** AWS CDK v2 (`aws-cdk-lib`, `constructs`).
 - **Execution target:** Amazon Bedrock AgentCore **Runtime**, preferably Runtime V2 where supported and verified.
-- **Coding-agent engine:** The existing official Claude Code executable / supported programmatic invocation. Preserve its native behavior and configuration.
+- **Coding-agent engine:** The official Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`), which runs Claude Code. Preserve its native behavior and configuration.
 - **Model access:** Amazon Bedrock for Claude models by default; avoid embedding static AWS keys or provider keys.
 - **Tools:** Native Claude Code tooling and MCP; Amazon Bedrock AgentCore Gateway when suitable for managed MCP tools.
 - **Deployment:** Regular `cdk synth`, `cdk diff`, and `cdk deploy`. Do not create a separate deployment CLI for the MVP.
@@ -54,7 +54,7 @@ Use official AWS SDKs, CDK libraries, AWS services, and Claude Code conventions 
 
 ## 4. Primary abstraction
 
-Expose a high-level **`ClaudeCodeAgent`** construct built from official CDK constructs and native Claude Code artifacts.
+Expose a high-level **`C3Agent`** construct built from official CDK constructs and native Claude Code artifacts.
 
 Proposed public interface (DESIGN TARGET; not implemented):
 
@@ -62,7 +62,7 @@ Proposed public interface (DESIGN TARGET; not implemented):
 import { App, Stack } from 'aws-cdk-lib';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Function as LambdaFunction } from 'aws-cdk-lib/aws-lambda';
-import { ClaudeCodeAgent } from 'c3-aws';
+import { C3Agent } from 'c3-aws';
 
 const app = new App();
 const stack = new Stack(app, 'Agents');
@@ -70,7 +70,7 @@ const stack = new Stack(app, 'Agents');
 const bucket = new Bucket(stack, 'Documents');
 const notification = /* an existing Lambda function */ {} as LambdaFunction;
 
-const reviewer = new ClaudeCodeAgent(stack, 'Reviewer', {
+const reviewer = new C3Agent(stack, 'Reviewer', {
   source: './agents/reviewer',
   model: 'sonnet', // Resolve and validate the actual Bedrock model ID per region.
 });
@@ -122,7 +122,7 @@ sample-app/
 └── package.json
 ```
 
-One `ClaudeCodeAgent` construct represents **one deployed Claude Code execution environment**. A workspace can contain several native Claude Code subagents; do not confuse those subagents with independently deployed AgentCore runtimes.
+One `C3Agent` construct represents **one deployed Claude Code execution environment**. A workspace can contain several native Claude Code subagents; do not confuse those subagents with independently deployed AgentCore runtimes.
 
 Preserve Claude Code file semantics, support optional custom workspace paths, and avoid mutating user source files during packaging. Warn about unsupported platform dependencies rather than silently ignoring them.
 
@@ -130,7 +130,7 @@ Preserve Claude Code file semantics, support optional custom workspace paths, an
 
 ```text
 Developer's TypeScript CDK application
-  └── C3 ClaudeCodeAgent (high-level construct)
+  └── C3 C3Agent (high-level construct)
         ├── Workspace/artifact preparation
         │     └── Existing Claude Code installation and configuration
         ├── AWS CDK L2 constructs
@@ -152,7 +152,7 @@ Use official `aws-cdk-lib/aws-bedrockagentcore` constructs when possible, especi
 ### Runtime integration
 
 - Runtime is the hosting environment; **do not replace Claude Code with AgentCore Harness**.
-- Start with a minimal AgentCore-compatible entrypoint that forwards requests to the official Claude Code executable using its supported noninteractive mechanism. This entrypoint is integration glue, not a new agent loop.
+- Start with a minimal AgentCore-compatible entrypoint that forwards requests to the official Claude Agent SDK (`query()`), which runs Claude Code. This entrypoint is integration glue, not a new agent loop.
 - Package Git, shell utilities, required language runtimes, and the user's workspace in a reproducible, version-pinned artifact.
 - Prefer an official AgentCore-supported deployment artifact. Use a container when dependencies or the Claude executable cannot reliably be packaged into a direct code asset.
 - Do not assume AgentCore's session isolation automatically provides durable source files or permanent conversational memory. Treat session, storage, and recovery as separately verified capabilities.
@@ -177,7 +177,7 @@ For actions Claude can discover with MCP. Reuse **AgentCore Gateway**:
 - OpenAPI endpoints: Gateway OpenAPI target when supported.
 - Smithy-modeled operations: Gateway Smithy target when the selected protocol/operation is actually supported.
 - Existing MCP servers: Gateway MCP target when appropriate.
-- S3/DynamoDB/SQS/EventBridge: investigate supported direct targets; where unavailable or impractical, use a *small, audited Lambda adapter* that calls the official AWS SDK. Do not promise generic automatic MCP exposure for every AWS resource.
+- S3/DynamoDB/SQS/EventBridge: investigate supported direct targets; where unavailable or impractical, use a _small, audited Lambda adapter_ that calls the official AWS SDK. Do not promise generic automatic MCP exposure for every AWS resource.
 
 Each connector must describe: supported operations, IAM permissions, tool names, input/output schemas, authorization, error handling, resource scope, and limitations.
 
@@ -222,7 +222,7 @@ Standard `cdk` tooling handles deployment; C3 does not need a custom deployment 
 
 Design preferences:
 
-- One primary construct (`ClaudeCodeAgent`), minimum required props, safe defaults.
+- One primary construct (`C3Agent`), minimum required props, safe defaults.
 - Prefer first-class TypeScript types and IntelliSense over YAML or magic strings.
 - Prefer resource object references to hand-entered ARNs.
 - Keep all generated infrastructure inside the application's CDK construct tree.
@@ -236,7 +236,7 @@ Design preferences:
 ```text
 c3/
 ├── src/
-│   ├── claude-code-agent.ts         # Main high-level CDK construct
+│   ├── agent.ts         # Main high-level CDK construct
 │   ├── workspace/                  # Source discovery, validation, assets
 │   ├── runtime/                    # AgentCore runtime/entrypoint integration
 │   ├── connections/                # Explicit resource-to-tool integrations
@@ -266,7 +266,7 @@ Create only directories that are actively needed; avoid speculative abstractions
 
 ### v0.1 — minimum end-to-end proof
 
-- `ClaudeCodeAgent` construct with a native Claude Code workspace path.
+- `C3Agent` construct with a native Claude Code workspace path.
 - Reproducible packaging of the real Claude Code executable and dependencies.
 - Deployment to AgentCore Runtime via AWS CDK, model access using Amazon Bedrock.
 - Runtime IAM execution role with minimum permissions.
@@ -341,8 +341,8 @@ These are NOT resolved decisions. Investigate before promising support:
 
 These answer parts of the questions above; revisit them if upstream behavior changes.
 
-- **Q1/Q2:** Container artifact (ARM64, `node:22-bookworm-slim`). Claude Code is installed from npm at image build time with a pinned version (`DEFAULT_CLAUDE_CODE_VERSION`) and is never redistributed by C3.
-- **Q3:** The entrypoint runs `claude -p --output-format stream-json` and returns JSON, or SSE when `stream: true`.
+- **Q1/Q2:** Container artifact (ARM64, `node:22-bookworm-slim`). The Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`, which ships the Claude Code binary) is installed from npm at image build time with a pinned version (`DEFAULT_AGENT_SDK_VERSION`, prop `agentSdkVersion`) and is never redistributed by C3.
+- **Q3:** The entrypoint calls the Agent SDK `query()` with `settingSources: [user, project, local]` and the `claude_code` system prompt preset, and returns JSON, or SSE when `stream: true`. Timeouts call `interrupt()` before aborting.
 - **Q5:** Model aliases are resolved by Claude Code itself. IAM is scoped to `anthropic.claude-*`, or to the exact inference profile when one is pinned.
 - **Q6:** The Gateway uses `AWS_IAM` inbound auth. Claude Code reaches it through `mcp-proxy-for-aws-cli` (SigV4) as a stdio MCP server named `c3-gateway`. Not yet verified on AWS.
 - **Q7:** S3, DynamoDB, SQS and EventBridge use small Lambda adapters in `runtime-assets/adapters`.
@@ -364,4 +364,4 @@ The project name is **C3 — Claude Code Cloud**. The visual direction discussed
 
 ---
 
-**North star:** A developer should be able to take a real Claude Code workspace, construct one `ClaudeCodeAgent`, explicitly connect the AWS capabilities it needs, and deploy it with `cdk deploy`—without learning every AgentCore, IAM, Gateway, packaging, and authentication detail first.
+**North star:** A developer should be able to take a real Claude Code workspace, construct one `C3Agent`, explicitly connect the AWS capabilities it needs, and deploy it with `cdk deploy`—without learning every AgentCore, IAM, Gateway, packaging, and authentication detail first.

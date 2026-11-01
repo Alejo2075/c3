@@ -7,12 +7,12 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import type { Stack } from 'aws-cdk-lib';
 import { describe, expect, test } from 'vitest';
-import { ClaudeCodeAgent } from 'c3-aws';
+import { C3Agent } from 'c3-aws';
 import { actionsOf, makeStack, makeWorkspace, statementsForRole } from '../helpers';
 
-function setup(): { stack: Stack; agent: ClaudeCodeAgent; fn: lambda.Function } {
+function setup(): { stack: Stack; agent: C3Agent; fn: lambda.Function } {
   const stack = makeStack();
-  const agent = new ClaudeCodeAgent(stack, 'Agent', { source: makeWorkspace() });
+  const agent = new C3Agent(stack, 'Agent', { source: makeWorkspace() });
   const fn = new lambda.Function(stack, 'Notify', {
     runtime: lambda.Runtime.NODEJS_22_X,
     handler: 'index.handler',

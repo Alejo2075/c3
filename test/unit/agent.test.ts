@@ -6,13 +6,13 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { ClaudeCodeAgent, PermissionMode } from 'c3-aws';
+import { C3Agent, PermissionMode } from 'c3-aws';
 import { actionsOf, makeStack, makeWorkspace, statementsForRole } from '../helpers';
 
-describe('ClaudeCodeAgent', () => {
+describe('C3Agent', () => {
   test('synthesizes an HTTP AgentCore runtime with safe defaults', () => {
     const stack = makeStack();
-    const agent = new ClaudeCodeAgent(stack, 'Agent', { source: makeWorkspace() });
+    const agent = new C3Agent(stack, 'Agent', { source: makeWorkspace() });
     const template = Template.fromStack(stack);
 
     template.resourceCountIs('AWS::BedrockAgentCore::Runtime', 1);
@@ -34,8 +34,8 @@ describe('ClaudeCodeAgent', () => {
 
   test('stages a deterministic ARM64 Docker build context', () => {
     const ws = makeWorkspace({ 'CLAUDE.md': '# hi', '.env': 'NOPE=1' });
-    const a = new ClaudeCodeAgent(makeStack(), 'Agent', { source: ws });
-    const b = new ClaudeCodeAgent(makeStack(), 'Agent', { source: ws });
+    const a = new C3Agent(makeStack(), 'Agent', { source: ws });
+    const b = new C3Agent(makeStack(), 'Agent', { source: ws });
     expect(a.buildContextDir).toBe(b.buildContextDir);
     const dir = a.buildContextDir!;
     expect(fs.existsSync(path.join(dir, 'Dockerfile'))).toBe(true);
@@ -46,7 +46,7 @@ describe('ClaudeCodeAgent', () => {
 
   test('runtime role only gets model access plus AgentCore defaults; no wildcard actions', () => {
     const stack = makeStack();
-    new ClaudeCodeAgent(stack, 'Agent', { source: makeWorkspace() });
+    new C3Agent(stack, 'Agent', { source: makeWorkspace() });
     const statements = statementsForRole(
       Template.fromStack(stack).toJSON(),
       'AgentRuntimeExecutionRole',
@@ -67,7 +67,7 @@ describe('ClaudeCodeAgent', () => {
 
   test('passes Claude Code options through environment variables', () => {
     const stack = makeStack();
-    new ClaudeCodeAgent(stack, 'Agent', {
+    new C3Agent(stack, 'Agent', {
       source: makeWorkspace(),
       model: 'opus',
       permissionMode: PermissionMode.ACCEPT_EDITS,
@@ -95,24 +95,24 @@ describe('ClaudeCodeAgent', () => {
   test('rejects secret-looking and reserved environment variables', () => {
     expect(
       () =>
-        new ClaudeCodeAgent(makeStack(), 'A', {
+        new C3Agent(makeStack(), 'A', {
           source: makeWorkspace(),
           environment: { GITHUB_TOKEN: 'x' },
         }),
     ).toThrow(/looks like a secret/);
     expect(
       () =>
-        new ClaudeCodeAgent(makeStack(), 'A', {
+        new C3Agent(makeStack(), 'A', {
           source: makeWorkspace(),
           environment: { C3_GATEWAY_URL: 'x' },
         }),
     ).toThrow(/managed by C3/);
     expect(
-      () => new ClaudeCodeAgent(makeStack(), 'A', { source: makeWorkspace(), maxBudgetUsd: 0 }),
+      () => new C3Agent(makeStack(), 'A', { source: makeWorkspace(), maxBudgetUsd: 0 }),
     ).toThrow(/positive/);
     expect(
       () =>
-        new ClaudeCodeAgent(makeStack(), 'A', {
+        new C3Agent(makeStack(), 'A', {
           source: makeWorkspace(),
           invocationTimeout: Duration.hours(9),
         }),
@@ -121,7 +121,7 @@ describe('ClaudeCodeAgent', () => {
 
   test('surfaces workspace warnings as CDK annotations', () => {
     const stack = makeStack();
-    new ClaudeCodeAgent(stack, 'Agent', {
+    new C3Agent(stack, 'Agent', {
       source: makeWorkspace({ 'README.md': 'no claude files' }),
     });
     Annotations.fromStack(stack).hasWarning(
@@ -133,7 +133,7 @@ describe('ClaudeCodeAgent', () => {
   test('optional observability, endpoint and session storage', () => {
     const stack = makeStack();
     const bucket = new s3.Bucket(stack, 'Sessions');
-    const agent = new ClaudeCodeAgent(stack, 'Agent', {
+    const agent = new C3Agent(stack, 'Agent', {
       source: makeWorkspace(),
       tracing: true,
       applicationLogs: { removalPolicy: RemovalPolicy.DESTROY },
@@ -158,7 +158,7 @@ describe('ClaudeCodeAgent', () => {
 
   test('grantInvoke lets a caller invoke the runtime', () => {
     const stack = makeStack();
-    const agent = new ClaudeCodeAgent(stack, 'Agent', { source: makeWorkspace() });
+    const agent = new C3Agent(stack, 'Agent', { source: makeWorkspace() });
     const caller = new iam.Role(stack, 'Caller', { assumedBy: new iam.AccountRootPrincipal() });
     agent.grantInvoke(caller);
     const actions = actionsOf(statementsForRole(Template.fromStack(stack).toJSON(), 'Caller'));

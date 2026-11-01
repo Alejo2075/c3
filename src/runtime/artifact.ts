@@ -7,10 +7,11 @@ import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import { copyWorkspace, type WorkspaceInspection } from '../workspace/workspace';
 
 /**
- * Claude Code version installed in the runtime image unless overridden.
- * Bumped deliberately in C3 releases after testing.
+ * `@anthropic-ai/claude-agent-sdk` version installed in the runtime image
+ * unless overridden. The SDK bundles the Claude Code binary (0.3.312 ships
+ * Claude Code 2.1.312). Bumped deliberately in C3 releases after testing.
  */
-export const DEFAULT_CLAUDE_CODE_VERSION = '2.1.311';
+export const DEFAULT_AGENT_SDK_VERSION = '0.3.312';
 
 /** Version of the AWS-maintained SigV4 MCP proxy installed in the image. */
 export const MCP_PROXY_FOR_AWS_VERSION = '1.7.0';
@@ -29,7 +30,7 @@ const RUNTIME_ASSET_FILES = [
 
 export interface RuntimeArtifactOptions {
   readonly workspace: WorkspaceInspection;
-  readonly claudeCodeVersion: string;
+  readonly agentSdkVersion: string;
   readonly installAwsCli: boolean;
   /** Parent directory for build contexts. Defaults to the OS temp directory. */
   readonly stagingRoot?: string;
@@ -57,22 +58,37 @@ export function stageRuntimeArtifact(options: RuntimeArtifactOptions): StagedRun
   const contextDir = path.join(options.stagingRoot ?? path.join(os.tmpdir(), 'c3-build'), digest);
 
   if (!fs.existsSync(path.join(contextDir, '.complete'))) {
-    fs.rmSync(contextDir, { recursive: true, force: true });
-    for (const file of RUNTIME_ASSET_FILES) {
-      const target = path.join(contextDir, file);
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.copyFileSync(path.join(RUNTIME_ASSETS_DIR, file), target);
+    // Stage in a private directory and rename it into place, so concurrent
+    // synths (or test workers) never observe or delete a half-written context.
+    const stagingDir = `${contextDir}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+    try {
+      for (const file of RUNTIME_ASSET_FILES) {
+        const target = path.join(stagingDir, file);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(path.join(RUNTIME_ASSETS_DIR, file), target);
+      }
+      fs.mkdirSync(path.join(stagingDir, 'workspace'), { recursive: true });
+      copyWorkspace(options.workspace, path.join(stagingDir, 'workspace'));
+      fs.writeFileSync(path.join(stagingDir, '.complete'), '');
+      try {
+        fs.renameSync(stagingDir, contextDir);
+      } catch {
+        // Another process finished first, or an incomplete directory is in the way.
+        if (!fs.existsSync(path.join(contextDir, '.complete'))) {
+          fs.rmSync(contextDir, { recursive: true, force: true });
+          fs.renameSync(stagingDir, contextDir);
+        }
+      }
+    } finally {
+      fs.rmSync(stagingDir, { recursive: true, force: true });
     }
-    fs.mkdirSync(path.join(contextDir, 'workspace'), { recursive: true });
-    copyWorkspace(options.workspace, path.join(contextDir, 'workspace'));
-    fs.writeFileSync(path.join(contextDir, '.complete'), '');
   }
 
   const artifact = AgentRuntimeArtifact.fromAsset(contextDir, {
     platform: Platform.LINUX_ARM64,
     exclude: ['.complete'],
     buildArgs: {
-      CLAUDE_CODE_VERSION: options.claudeCodeVersion,
+      CLAUDE_AGENT_SDK_VERSION: options.agentSdkVersion,
       MCP_PROXY_FOR_AWS_VERSION,
       INSTALL_AWS_CLI: String(options.installAwsCli),
     },

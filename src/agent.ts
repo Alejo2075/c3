@@ -33,12 +33,12 @@ import { connectS3, type S3ToolOptions } from './connections/s3';
 import type { ConnectionOptions, ToolConnection } from './connections/types';
 import { C3ValidationError } from './errors';
 import { AgentToolGateway, toTargetName } from './gateway/agent-gateway';
-import { DEFAULT_CLAUDE_CODE_VERSION, stageRuntimeArtifact } from './runtime/artifact';
+import { DEFAULT_AGENT_SDK_VERSION, stageRuntimeArtifact } from './runtime/artifact';
 import { ClaudeModel } from './runtime/models';
 import { grantResource, type GrantableResource, type GrantOptions } from './security/grants';
 import { inspectWorkspace, looksSecret } from './workspace/workspace';
 
-/** Claude Code permission modes accepted in headless mode. */
+/** Claude Code permission modes accepted by the Agent SDK. */
 export enum PermissionMode {
   /** Deny every tool that is not pre-approved by settings or `allowedTools`. The C3 default. */
   DONT_ASK = 'dontAsk',
@@ -66,7 +66,7 @@ export interface SessionStorageOptions {
   readonly prefix?: string;
 }
 
-export interface ClaudeCodeAgentProps {
+export interface C3AgentProps {
   /** Path to a native Claude Code workspace (CLAUDE.md, .claude/, .mcp.json). */
   readonly source: string;
   /**
@@ -75,8 +75,12 @@ export interface ClaudeCodeAgentProps {
    * @default ClaudeModel.SONNET
    */
   readonly model?: ClaudeModel | string;
-  /** Claude Code npm version installed in the image. @default DEFAULT_CLAUDE_CODE_VERSION */
-  readonly claudeCodeVersion?: string;
+  /**
+   * `@anthropic-ai/claude-agent-sdk` npm version installed in the image. It
+   * determines the bundled Claude Code version.
+   * @default DEFAULT_AGENT_SDK_VERSION
+   */
+  readonly agentSdkVersion?: string;
   /** @default PermissionMode.DONT_ASK */
   readonly permissionMode?: PermissionMode;
   /** Extra Claude Code permission rules to allow, e.g. `['Read', 'Bash(git log:*)']`. */
@@ -120,7 +124,7 @@ export interface ClaudeCodeAgentProps {
  * One Claude Code execution environment on Amazon Bedrock AgentCore Runtime,
  * built from a native Claude Code workspace.
  */
-export class ClaudeCodeAgent extends Construct implements iam.IGrantable {
+export class C3Agent extends Construct implements iam.IGrantable {
   /** The AgentCore Runtime. */
   public readonly runtime: Runtime;
   /** The runtime execution role. Claude Code runs with these permissions. */
@@ -138,7 +142,7 @@ export class ClaudeCodeAgent extends Construct implements iam.IGrantable {
   private toolGateway?: AgentToolGateway;
   private readonly debugToolErrors: boolean;
 
-  constructor(scope: Construct, id: string, props: ClaudeCodeAgentProps) {
+  constructor(scope: Construct, id: string, props: C3AgentProps) {
     super(scope, id);
     this.debugToolErrors = props.debugToolErrors ?? false;
     this.model =
@@ -152,7 +156,7 @@ export class ClaudeCodeAgent extends Construct implements iam.IGrantable {
     if (!artifact) {
       const staged = stageRuntimeArtifact({
         workspace,
-        claudeCodeVersion: props.claudeCodeVersion ?? DEFAULT_CLAUDE_CODE_VERSION,
+        agentSdkVersion: props.agentSdkVersion ?? DEFAULT_AGENT_SDK_VERSION,
         installAwsCli: props.installAwsCli ?? false,
       });
       artifact = staged.artifact;
@@ -200,7 +204,7 @@ export class ClaudeCodeAgent extends Construct implements iam.IGrantable {
     }
   }
 
-  private environment(props: ClaudeCodeAgentProps): Record<string, string> {
+  private environment(props: C3AgentProps): Record<string, string> {
     const env: Record<string, string> = {};
     for (const [key, value] of Object.entries(props.environment ?? {})) {
       if (looksSecret(key)) {

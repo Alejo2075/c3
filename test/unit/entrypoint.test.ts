@@ -17,40 +17,68 @@ describe('runtime entrypoint helpers', () => {
     expect(() => lib.readConfig({ C3_PERMISSION_MODE: 'yolo' })).toThrow(/Unsupported/);
   });
 
-  test('builds a noninteractive Claude Code command line', () => {
+  test('builds Agent SDK query options', () => {
     const config = lib.readConfig({
       ANTHROPIC_MODEL: 'sonnet',
       C3_ALLOWED_TOOLS: 'Read,Bash(git log:*)',
       C3_MAX_BUDGET_USD: '1.5',
+      C3_GATEWAY_URL: 'https://gw.example/mcp',
+      AWS_REGION: 'us-east-1',
     });
-    const args = lib.buildClaudeArgs(config, {
-      prompt: 'hi',
+    const options = lib.buildQueryOptions(config, {
       sessionId: 'abc',
       resume: false,
-      mcpConfigPath: '/m.json',
+      env: { A: '1' },
+      stream: true,
     });
-    expect(args.slice(0, 5)).toEqual(['-p', 'hi', '--output-format', 'stream-json', '--verbose']);
-    expect(args).toEqual(
-      expect.arrayContaining([
-        '--permission-mode',
-        'dontAsk',
-        '--model',
-        'sonnet',
-        '--mcp-config',
-        '/m.json',
-      ]),
-    );
-    expect(args[args.indexOf('--allowedTools') + 1]).toBe('Read,Bash(git log:*),mcp__c3-gateway');
-    expect(args).toEqual(
-      expect.arrayContaining(['--max-budget-usd', '1.5', '--session-id', 'abc']),
-    );
-    const resumed = lib.buildClaudeArgs(config, {
-      prompt: 'again',
+    expect(options).toMatchObject({
+      cwd: '/workspace',
+      env: { A: '1' },
+      model: 'sonnet',
+      permissionMode: 'dontAsk',
+      settingSources: ['user', 'project', 'local'],
+      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      includePartialMessages: true,
+      maxBudgetUsd: 1.5,
       sessionId: 'abc',
-      resume: true,
+      allowedTools: ['Read', 'Bash(git log:*)', 'mcp__c3-gateway'],
+      mcpServers: {
+        'c3-gateway': {
+          type: 'stdio',
+          command: 'mcp-proxy-for-aws-cli',
+          args: [
+            'https://gw.example/mcp',
+            '--service',
+            'bedrock-agentcore',
+            '--region',
+            'us-east-1',
+          ],
+        },
+      },
     });
-    expect(resumed).toEqual(expect.arrayContaining(['--resume', 'abc']));
-    expect(resumed).not.toContain('--mcp-config');
+    expect(options.resume).toBeUndefined();
+    expect(options.allowDangerouslySkipPermissions).toBeUndefined();
+
+    const resumed = lib.buildQueryOptions(base, { sessionId: 'abc', resume: true, env: {} });
+    expect(resumed.resume).toBe('abc');
+    expect(resumed.sessionId).toBeUndefined();
+    expect(resumed.mcpServers).toBeUndefined();
+    expect(resumed.allowedTools).toBeUndefined();
+  });
+
+  test('maps permission modes to the SDK', () => {
+    const bypass = lib.buildQueryOptions(
+      lib.readConfig({ C3_PERMISSION_MODE: 'bypassPermissions' }),
+      {
+        env: {},
+      },
+    );
+    expect(bypass.permissionMode).toBe('bypassPermissions');
+    expect(bypass.allowDangerouslySkipPermissions).toBe(true);
+    const manual = lib.buildQueryOptions(lib.readConfig({ C3_PERMISSION_MODE: 'manual' }), {
+      env: {},
+    });
+    expect(manual.permissionMode).toBe('default');
   });
 
   test('derives a stable RFC 4122 UUID from AgentCore session IDs', () => {
@@ -74,27 +102,21 @@ describe('runtime entrypoint helpers', () => {
   });
 
   test('gateway MCP config uses the AWS SigV4 proxy', () => {
-    expect(lib.gatewayMcpConfig('https://gw.example/mcp', 'us-east-1')).toEqual({
-      mcpServers: {
-        'c3-gateway': {
-          command: 'mcp-proxy-for-aws-cli',
-          args: [
-            'https://gw.example/mcp',
-            '--service',
-            'bedrock-agentcore',
-            '--region',
-            'us-east-1',
-          ],
-        },
+    expect(lib.gatewayMcpServers('https://gw.example/mcp', 'us-east-1')).toEqual({
+      'c3-gateway': {
+        type: 'stdio',
+        command: 'mcp-proxy-for-aws-cli',
+        args: ['https://gw.example/mcp', '--service', 'bedrock-agentcore', '--region', 'us-east-1'],
       },
     });
   });
 
-  test('summarizes stream-json output and splits lines', () => {
+  test('summarizes the Agent SDK result message', () => {
     const summary = lib.summarize([
       { type: 'system', subtype: 'init' },
       {
         type: 'result',
+        subtype: 'success',
         is_error: false,
         result: 'Done',
         session_id: 's',
@@ -109,9 +131,12 @@ describe('runtime entrypoint helpers', () => {
       numTurns: 2,
     });
     expect(lib.summarize([]).status).toBe('error');
-    expect(lib.splitLines('{"a"', ':1}\n{"b":2}\n{"c"')).toEqual({
-      lines: ['{"a":1}', '{"b":2}'],
-      rest: '{"c"',
+    const stopped = lib.summarize([
+      { type: 'result', subtype: 'error_max_turns', is_error: false, session_id: 's' },
+    ]);
+    expect(stopped).toMatchObject({
+      status: 'error',
+      error: expect.stringContaining('error_max_turns'),
     });
   });
 });

@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { App, CfnOutput, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import { ClaudeCodeAgent } from 'c3-aws';
+import { C3Agent } from 'c3-aws';
 
 const app = new App();
 const stack = new Stack(app, 'C3AwsData');
@@ -23,7 +23,7 @@ const orders = new dynamodb.Table(stack, 'Orders', {
   removalPolicy: RemovalPolicy.DESTROY,
 });
 
-const analyst = new ClaudeCodeAgent(stack, 'Analyst', {
+const analyst = new C3Agent(stack, 'Analyst', {
   source: path.join(__dirname, '..', 'agents', 'analyst'),
   model: 'sonnet',
   maxBudgetUsd: 2,

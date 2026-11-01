@@ -1,7 +1,7 @@
 import type { GatewayTarget } from 'aws-cdk-lib/aws-bedrockagentcore';
 import type * as lambda from 'aws-cdk-lib/aws-lambda';
 
-/** Result of `ClaudeCodeAgent.connect()`. */
+/** Result of `C3Agent.connect()`. */
 export interface ToolConnection {
   /** Gateway target name; it prefixes every tool name. */
   readonly targetName: string;

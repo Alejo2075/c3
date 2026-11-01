@@ -16,7 +16,7 @@ you, and the risks that remain.
   `bedrock-agentcore:InvokeGateway` on its own gateway.
 - **Inbound auth on the gateway.** Every gateway uses `AWS_IAM` (SigV4). C3 never creates gateways
   with `NONE` authorization.
-- **Headless permissions.** Claude Code runs with `--permission-mode dontAsk` by default: a tool
+- **Headless permissions.** Claude Code runs with `permissionMode: 'dontAsk'` by default: a tool
   runs only if your `.claude/settings.json` or `allowedTools` pre-approves it. `bypassPermissions`
   has to be set explicitly.
 - **Non-root container.** Claude Code runs as the `node` user.

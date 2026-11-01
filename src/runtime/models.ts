@@ -7,7 +7,7 @@ const ALIASES = ['opus', 'sonnet', 'haiku'] as const;
 const INFERENCE_PROFILE_PREFIXES = ['us', 'eu', 'apac', 'jp', 'au', 'global', 'us-gov'];
 
 /**
- * The Claude model a `ClaudeCodeAgent` runs on Amazon Bedrock.
+ * The Claude model a `C3Agent` runs on Amazon Bedrock.
  *
  * Aliases (`opus`, `sonnet`, `haiku`) are resolved by Claude Code itself to its
  * built-in Bedrock defaults, which can change between Claude Code versions.

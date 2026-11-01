@@ -21,7 +21,7 @@ body:
     id: versions
     attributes:
       label: Versions
-      description: c3-aws, aws-cdk-lib, Claude Code (claudeCodeVersion), Node.js
+      description: c3-aws, aws-cdk-lib, Claude Agent SDK (agentSdkVersion), Node.js
     validations:
       required: true
   - type: input

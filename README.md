@@ -21,7 +21,7 @@ models on Amazon Bedrock. You give the agent explicit, least-privilege access to
 
 - **Reuse your workspace as is.** `CLAUDE.md`, `.claude/agents`, `.claude/skills`, `settings.json`,
   hooks and `.mcp.json` keep working. There is no new agent DSL.
-- **One construct.** `new ClaudeCodeAgent(...)` lives in an ordinary CDK app. You deploy it with
+- **One construct.** `new C3Agent(...)` lives in an ordinary CDK app. You deploy it with
   `cdk deploy`.
 - **Explicit AWS access.** `grant()` adds IAM permissions. `connect()` exposes specific operations
   as MCP tools through AgentCore Gateway. Neither does anything you did not ask for.
@@ -42,19 +42,22 @@ npm install c3-aws aws-cdk-lib constructs
 import { App, Stack } from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import { ClaudeCodeAgent } from 'c3-aws';
+import { C3Agent } from 'c3-aws';
 
 const app = new App();
 const stack = new Stack(app, 'Agents');
 
-const reviewer = new ClaudeCodeAgent(stack, 'Reviewer', {
+const reviewer = new C3Agent(stack, 'Reviewer', {
   source: './agents/reviewer', // a normal Claude Code workspace
   model: 'sonnet',
 });
 
 // IAM only: lets Bash/SDK scripts inside Claude Code read these objects. No tool is created.
 const documents = new s3.Bucket(stack, 'Documents');
-reviewer.grant(documents, { actions: ['s3:ListBucket', 's3:GetObject'], prefixes: ['documents/*'] });
+reviewer.grant(documents, {
+  actions: ['s3:ListBucket', 's3:GetObject'],
+  prefixes: ['documents/*'],
+});
 
 // An MCP tool backed by your Lambda function, served through AgentCore Gateway.
 declare const notification: lambda.IFunction;
@@ -90,59 +93,60 @@ agents/reviewer/
 
 ```text
 your CDK app
- └─ ClaudeCodeAgent
-     ├─ ARM64 container: Claude Code CLI (version-pinned) + your workspace + tiny HTTP adapter
+ └─ C3Agent
+     ├─ ARM64 container: Claude Agent SDK (version-pinned) + your workspace + tiny HTTP adapter
      ├─ AgentCore Runtime (HTTP protocol) + execution role scoped to Claude models on Bedrock
      └─ AgentCore Gateway (IAM auth), created only when you call connect()
          └─ targets: your Lambda functions, or C3's audited S3 / DynamoDB / SQS / EventBridge adapters
 
-invoke → AgentCore Runtime → claude -p … (stream-json) → Claude on Amazon Bedrock
+invoke → AgentCore Runtime → Claude Agent SDK query() → Claude on Amazon Bedrock
                                   └─ MCP: c3-gateway → SigV4 proxy → AgentCore Gateway → tools
 ```
 
 The adapter in [`runtime-assets/entrypoint`](runtime-assets/entrypoint) implements the
 [AgentCore HTTP contract](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html)
-(`POST /invocations`, `GET /ping`). For each request it runs the official CLI in headless mode.
-It is glue code, not an agent loop. See [docs/architecture.md](docs/architecture.md).
+(`POST /invocations`, `GET /ping`). For each request it calls `query()` from the official
+[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview), which runs Claude Code with
+your workspace's `CLAUDE.md`, settings, skills, subagents and hooks. It is glue code, not an agent loop. See [docs/architecture.md](docs/architecture.md).
 
 ## `grant()` vs `connect()`
 
-| | `agent.grant(resource, …)` | `agent.connect(resource, …)` |
-|---|---|---|
-| What it does | Adds IAM permissions to the agent's execution role | Makes specific operations available as MCP tools |
-| Who calls AWS | Claude Code itself (Bash, AWS CLI, SDK scripts) | A Gateway target (your Lambda, or a C3 adapter) |
-| Creates a tool | No | Yes, `mcp__c3-gateway__<name>___<tool>` |
-| Runtime role gets resource access | Yes, exactly the listed actions | No, only `bedrock-agentcore:InvokeGateway` |
+|                                   | `agent.grant(resource, …)`                         | `agent.connect(resource, …)`                     |
+| --------------------------------- | -------------------------------------------------- | ------------------------------------------------ |
+| What it does                      | Adds IAM permissions to the agent's execution role | Makes specific operations available as MCP tools |
+| Who calls AWS                     | Claude Code itself (Bash, AWS CLI, SDK scripts)    | A Gateway target (your Lambda, or a C3 adapter)  |
+| Creates a tool                    | No                                                 | Yes, `mcp__c3-gateway__<name>___<tool>`          |
+| Runtime role gets resource access | Yes, exactly the listed actions                    | No, only `bedrock-agentcore:InvokeGateway`       |
 
 ### Supported connections
 
-| Resource | Tools | Scope enforced by IAM and the adapter |
-|---|---|---|
-| `lambda.IFunction` | Your explicit schema(s) | Gateway role may invoke only that function |
-| `s3.IBucket` | `list_objects`, `get_object` (read-only) | `prefixes` (required); `s3:prefix` condition; size caps |
-| `dynamodb.ITable` | `get_item`, `query` (read-only) | Declared indexes, `dynamodb:LeadingKeys`, `dynamodb:Attributes` |
-| `sqs.IQueue` | `send_message` | One queue, body size cap |
-| `events.IEventBus` | `put_event` | Fixed `source`, allow-listed `detailTypes` |
-| OpenAPI (`connectOpenApi`) | From the spec | Explicit outbound credentials |
-| Remote MCP server (`connectMcpServer`) | From the server | Credentials required |
+| Resource                               | Tools                                    | Scope enforced by IAM and the adapter                           |
+| -------------------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
+| `lambda.IFunction`                     | Your explicit schema(s)                  | Gateway role may invoke only that function                      |
+| `s3.IBucket`                           | `list_objects`, `get_object` (read-only) | `prefixes` (required); `s3:prefix` condition; size caps         |
+| `dynamodb.ITable`                      | `get_item`, `query` (read-only)          | Declared indexes, `dynamodb:LeadingKeys`, `dynamodb:Attributes` |
+| `sqs.IQueue`                           | `send_message`                           | One queue, body size cap                                        |
+| `events.IEventBus`                     | `put_event`                              | Fixed `source`, allow-listed `detailTypes`                      |
+| OpenAPI (`connectOpenApi`)             | From the spec                            | Explicit outbound credentials                                   |
+| Remote MCP server (`connectMcpServer`) | From the server                          | Credentials required                                            |
 
 The full options and the IAM each connector creates are in [docs/connections.md](docs/connections.md).
 
 ## Configuration
 
 ```ts
-new ClaudeCodeAgent(stack, 'Agent', {
+new C3Agent(stack, 'Agent', {
   source: './agents/reviewer',
   model: ClaudeModel.fromInferenceProfileId('us.anthropic.claude-sonnet-4-6'), // pin for stability
-  claudeCodeVersion: '2.1.311',
-  permissionMode: PermissionMode.DONT_ASK,  // default: only pre-approved tools run
+  agentSdkVersion: '0.3.312', // @anthropic-ai/claude-agent-sdk; bundles Claude Code
+  permissionMode: PermissionMode.DONT_ASK, // default: only pre-approved tools run
   allowedTools: ['Read', 'Grep'],
-  maxBudgetUsd: 2,                          // per invocation
+  maxBudgetUsd: 2, // per invocation
   invocationTimeout: Duration.minutes(15),
   installAwsCli: false,
   network: RuntimeNetworkConfiguration.usingVpc(stack, { vpc }),
   lifecycle: { idleRuntimeSessionTimeout: Duration.minutes(15) },
-  platformVersion: PlatformVersion.V2,      // opt in after checking regional support
+  platformVersion: PlatformVersion.V2, // opt in after checking regional support
   tracing: true,
   applicationLogs: { retention: RetentionDays.ONE_MONTH },
   sessionStorage: { bucket: sessionsBucket }, // optional durability across microVMs
@@ -168,13 +172,13 @@ you are done.
 
 ## Status
 
-| Area | State |
-|---|---|
-| `ClaudeCodeAgent`, workspace packaging, IAM, Gateway wiring, connectors | **Implemented**, unit-tested with CDK assertions |
-| Examples synthesize (`npm run synth:examples`) | **Implemented**, run in CI |
-| Docker image build, deploy, invoke, Lambda tool round-trip | **Not yet verified on AWS.** An opt-in test exists in `test/integration` |
-| Claude Code → Gateway auth through `mcp-proxy-for-aws` | **Unverified** until the integration test passes |
-| Session durability (`sessionStorage`) | **Experimental** |
+| Area                                                            | State                                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `C3Agent`, workspace packaging, IAM, Gateway wiring, connectors | **Implemented**, unit-tested with CDK assertions                         |
+| Examples synthesize (`npm run synth:examples`)                  | **Implemented**, run in CI                                               |
+| Docker image build, deploy, invoke, Lambda tool round-trip      | **Not yet verified on AWS.** An opt-in test exists in `test/integration` |
+| Claude Code → Gateway auth through `mcp-proxy-for-aws`          | **Unverified** until the integration test passes                         |
+| Session durability (`sessionStorage`)                           | **Experimental**                                                         |
 
 Known limitations are listed in [docs/limitations.md](docs/limitations.md).
 

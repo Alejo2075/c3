@@ -2,7 +2,7 @@
 import * as path from 'node:path';
 import { App, CfnOutput, Duration, Stack } from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import { ClaudeCodeAgent } from 'c3-aws';
+import { C3Agent } from 'c3-aws';
 
 const app = new App();
 const stack = new Stack(app, 'C3LambdaTool');
@@ -16,7 +16,7 @@ const notify = new lambda.Function(stack, 'Notify', {
   timeout: Duration.seconds(10),
 });
 
-const agent = new ClaudeCodeAgent(stack, 'Notifier', {
+const agent = new C3Agent(stack, 'Notifier', {
   source: path.join(__dirname, '..', 'agents', 'notifier'),
   model: 'sonnet',
   maxBudgetUsd: 1,

@@ -8,7 +8,7 @@ import type * as sqs from 'aws-cdk-lib/aws-sqs';
 import { C3ValidationError } from '../errors';
 import { normalizePrefixes } from '../connections/s3';
 
-/** Resources `ClaudeCodeAgent.grant()` understands. */
+/** Resources `C3Agent.grant()` understands. */
 export type GrantableResource =
   s3.IBucket | dynamodb.ITable | lambda.IFunction | sqs.IQueue | sns.ITopic | events.IEventBus;
 

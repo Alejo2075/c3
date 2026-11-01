@@ -1,6 +1,6 @@
 import { Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, test } from 'vitest';
-import { ClaudeCodeAgent, ClaudeModel } from 'c3-aws';
+import { C3Agent, ClaudeModel } from 'c3-aws';
 import { actionsOf, makeStack, makeWorkspace, statementsForRole } from '../helpers';
 
 describe('ClaudeModel', () => {
@@ -17,7 +17,7 @@ describe('ClaudeModel', () => {
 
   test('a pinned inference profile is scoped to that model', () => {
     const stack = makeStack();
-    new ClaudeCodeAgent(stack, 'Agent', {
+    new C3Agent(stack, 'Agent', {
       source: makeWorkspace(),
       model: 'us.anthropic.claude-sonnet-4-6',
     });

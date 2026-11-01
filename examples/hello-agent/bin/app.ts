@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import * as path from 'node:path';
 import { App, CfnOutput, Stack } from 'aws-cdk-lib';
-import { ClaudeCodeAgent, PermissionMode } from 'c3-aws';
+import { C3Agent, PermissionMode } from 'c3-aws';
 
 const app = new App();
 const stack = new Stack(app, 'C3HelloAgent');
 
-const agent = new ClaudeCodeAgent(stack, 'Hello', {
+const agent = new C3Agent(stack, 'Hello', {
   source: path.join(__dirname, '..', 'agents', 'hello'),
   model: 'sonnet',
   // Read-only tools plus the permissions in agents/hello/.claude/settings.json.

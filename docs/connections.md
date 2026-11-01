@@ -38,32 +38,37 @@ agent.connect(fn, { name: 'tickets', tools: [{ name: 'create', … }, { name: 'c
 ## S3 buckets: `list_objects`, `get_object`
 
 ```ts
-agent.connect(bucket, { name: 'docs', prefixes: ['reports/'], maxObjectBytes: 256 * 1024, maxKeys: 100 });
+agent.connect(bucket, {
+  name: 'docs',
+  prefixes: ['reports/'],
+  maxObjectBytes: 256 * 1024,
+  maxKeys: 100,
+});
 ```
 
-| | |
-|---|---|
-| IAM | `s3:ListBucket` on the bucket with `StringLike s3:prefix = <prefix>*`; `s3:GetObject` on `<bucket>/<prefix>*`; `kms:Decrypt` if the bucket has a CMK. |
-| Inputs | `list_objects { prefix?, maxKeys?, nextToken? }`, `get_object { key, maxBytes? }` |
-| Output | Text up to `maxObjectBytes`, with `truncated`. Binary objects return metadata only. |
-| Limits | Read-only. `prefixes` is required: `['*']` means the whole bucket. No versioned reads. |
+|        |                                                                                                                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| IAM    | `s3:ListBucket` on the bucket with `StringLike s3:prefix = <prefix>*`; `s3:GetObject` on `<bucket>/<prefix>*`; `kms:Decrypt` if the bucket has a CMK. |
+| Inputs | `list_objects { prefix?, maxKeys?, nextToken? }`, `get_object { key, maxBytes? }`                                                                     |
+| Output | Text up to `maxObjectBytes`, with `truncated`. Binary objects return metadata only.                                                                   |
+| Limits | Read-only. `prefixes` is required: `['*']` means the whole bucket. No versioned reads.                                                                |
 
 ## DynamoDB tables: `get_item`, `query`
 
 ```ts
 agent.connect(table, {
   name: 'orders',
-  partitionKeyPrefixes: ['TENANT#acme'],   // or `indexes: ['byStatus']`, not both
+  partitionKeyPrefixes: ['TENANT#acme'], // or `indexes: ['byStatus']`, not both
   attributes: ['status', 'total'],
   maxItems: 25,
 });
 ```
 
-| | |
-|---|---|
-| IAM | `dynamodb:GetItem` and `dynamodb:Query` on the table, plus `dynamodb:Query` on each declared index. `ForAllValues:StringLike dynamodb:LeadingKeys` when `partitionKeyPrefixes` is set. `ForAllValues:StringEquals dynamodb:Attributes` and `dynamodb:Select = SPECIFIC_ATTRIBUTES` when `attributes` is set (key attributes are added automatically). `kms:Decrypt` for a CMK. |
-| Inputs | `get_item { partitionKey, sortKey? }`, `query { partitionKey, sortKeyCondition?, indexName?, limit?, descending?, nextToken? }` |
-| Limits | Read-only. No `Scan`. String and number keys only (no binary, no multi-attribute keys). Imported tables need `keySchema`, and each of their indexes needs its own key schema. `partitionKeyPrefixes` cannot be combined with `indexes`, because IAM leading-key conditions do not restrict index queries. |
+|        |                                                                                                                                                                                                                                                                                                                                                                                |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| IAM    | `dynamodb:GetItem` and `dynamodb:Query` on the table, plus `dynamodb:Query` on each declared index. `ForAllValues:StringLike dynamodb:LeadingKeys` when `partitionKeyPrefixes` is set. `ForAllValues:StringEquals dynamodb:Attributes` and `dynamodb:Select = SPECIFIC_ATTRIBUTES` when `attributes` is set (key attributes are added automatically). `kms:Decrypt` for a CMK. |
+| Inputs | `get_item { partitionKey, sortKey? }`, `query { partitionKey, sortKeyCondition?, indexName?, limit?, descending?, nextToken? }`                                                                                                                                                                                                                                                |
+| Limits | Read-only. No `Scan`. String and number keys only (no binary, no multi-attribute keys). Imported tables need `keySchema`, and each of their indexes needs its own key schema. `partitionKeyPrefixes` cannot be combined with `indexes`, because IAM leading-key conditions do not restrict index queries.                                                                      |
 
 ## SQS queues: `send_message`
 
@@ -73,7 +78,11 @@ agent.connect(table, {
 ## EventBridge buses: `put_event`
 
 ```ts
-agent.connect(bus, { name: 'events', source: 'com.example.reviewer', detailTypes: ['ReviewCompleted'] });
+agent.connect(bus, {
+  name: 'events',
+  source: 'com.example.reviewer',
+  detailTypes: ['ReviewCompleted'],
+});
 ```
 
 IAM allows `events:PutEvents` on the bus, but only when `events:source` equals `source` and every

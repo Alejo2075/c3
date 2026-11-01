@@ -4,13 +4,13 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { describe, expect, test } from 'vitest';
-import { ClaudeCodeAgent } from 'c3-aws';
+import { C3Agent } from 'c3-aws';
 import { actionsOf, makeStack, makeWorkspace, statementsForRole } from '../helpers';
 
 describe('grant()', () => {
   test('scopes S3 object actions to prefixes and ListBucket with a condition, without creating tools', () => {
     const stack = makeStack();
-    const agent = new ClaudeCodeAgent(stack, 'Agent', { source: makeWorkspace() });
+    const agent = new C3Agent(stack, 'Agent', { source: makeWorkspace() });
     const bucket = new s3.Bucket(stack, 'Documents');
     agent.grant(bucket, { actions: ['s3:ListBucket', 's3:GetObject'], prefixes: ['documents/*'] });
 
@@ -26,7 +26,7 @@ describe('grant()', () => {
 
   test('rejects wildcards, wrong services and missing prefixes', () => {
     const stack = makeStack();
-    const agent = new ClaudeCodeAgent(stack, 'Agent', { source: makeWorkspace() });
+    const agent = new C3Agent(stack, 'Agent', { source: makeWorkspace() });
     const bucket = new s3.Bucket(stack, 'B');
     expect(() => agent.grant(bucket, { actions: ['s3:*'], prefixes: ['*'] })).toThrow(/wildcard/);
     expect(() => agent.grant(bucket, { actions: ['dynamodb:GetItem'], prefixes: ['*'] })).toThrow(
@@ -40,7 +40,7 @@ describe('grant()', () => {
 
   test('table, function and queue grants are resource scoped', () => {
     const stack = makeStack();
-    const agent = new ClaudeCodeAgent(stack, 'Agent', { source: makeWorkspace() });
+    const agent = new C3Agent(stack, 'Agent', { source: makeWorkspace() });
     const table = new dynamodb.Table(stack, 'T', {
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
     });

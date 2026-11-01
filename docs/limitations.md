@@ -5,7 +5,7 @@ not yet proven against real AWS) or **planned**.
 
 ## Implemented
 
-- `ClaudeCodeAgent` with workspace validation, exclusion, deterministic packaging and CDK
+- `C3Agent` with workspace validation, exclusion, deterministic packaging and CDK
   annotations for unsupported features.
 - Model selection (aliases, inference profiles, application inference profiles) and the IAM for it.
 - `grant()` for S3, DynamoDB, Lambda, SQS, SNS and EventBridge.
@@ -17,7 +17,8 @@ not yet proven against real AWS) or **planned**.
 
 ## Unverified (run the integration test to verify)
 
-- Building the ARM64 image and running Claude Code inside AgentCore Runtime.
+- Building the ARM64 image and running the Claude Agent SDK (and its bundled Claude Code) inside
+  AgentCore Runtime, including Claude on Bedrock through the SDK.
 - Claude Code reaching the Gateway through `mcp-proxy-for-aws-cli` with the runtime role's
   credentials.
 - `--resume` continuity across invocations of the same runtime session.
@@ -41,4 +42,11 @@ not yet proven against real AWS) or **planned**.
 
 - WebSocket support, richer streaming clients and an async/background invocation pattern.
 - Additional connectors only where Gateway has no suitable direct target.
-- Upgrade tests across Claude Code and AgentCore versions.
+- Upgrade tests across Agent SDK and AgentCore versions.
+
+## Naming
+
+C3 is an independent project. Anthropic's Agent SDK guidelines say products built with the SDK
+should not be branded "Claude Code" or "Claude Code Agent". The project name and the
+`C3Agent` construct may need to change before a stable release; check the current
+[branding guidelines](https://code.claude.com/docs/en/agent-sdk/overview) first.
