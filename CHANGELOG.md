@@ -1,5 +1,11 @@
 # c3-aws
 
+## 0.1.1
+
+### Patch Changes
+
+- c068814: The runtime entrypoint resumes a session only when Claude Code wrote its transcript. A first turn that failed before writing one (for example, missing Bedrock model access) no longer leaves the session stuck on a failing resume.
+
 ## 0.1.0
 
 ### Minor Changes
