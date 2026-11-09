@@ -6,7 +6,6 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
 import {
   RequestError,
   SESSION_HEADER,
@@ -14,6 +13,7 @@ import {
   buildQueryOptions,
   parseInvocation,
   readConfig,
+  sessionTranscriptPath,
   sessionUuid,
   summarize,
 } from './lib.mjs';
@@ -69,9 +69,7 @@ function readBody(req) {
 }
 
 function sessionHasHistory(id) {
-  // Claude Code stores sessions under ~/.claude/projects/<encoded cwd>/<id>.jsonl.
-  const encoded = config.workspaceDir.replace(/[^a-zA-Z0-9]/g, '-');
-  return existsSync(join(homedir(), '.claude', 'projects', encoded, `${id}.jsonl`));
+  return existsSync(sessionTranscriptPath(homedir(), config.workspaceDir, id));
 }
 
 async function invoke(req, res) {
@@ -85,7 +83,9 @@ async function invoke(req, res) {
   if (sessionId && config.sessionBucket && !knownSessions.has(sessionId)) {
     await restoreSession(config, sessionId);
   }
-  const resume = sessionId ? knownSessions.has(sessionId) || sessionHasHistory(sessionId) : false;
+  // Resume only when Claude Code wrote a transcript: a turn that failed before
+  // writing one leaves nothing to resume.
+  const resume = sessionId ? sessionHasHistory(sessionId) : false;
   const abortController = new AbortController();
   let stderr = '';
   const options = buildQueryOptions(config, {
@@ -131,7 +131,8 @@ async function invoke(req, res) {
     clearTimeout(hardKill);
   }
 
-  if (sessionId) {
+  if (sessionId && sessionHasHistory(sessionId)) {
+    // Skip the S3 restore on later turns handled by this container.
     knownSessions.add(sessionId);
     if (config.sessionBucket) await saveSession(config, sessionId);
   }

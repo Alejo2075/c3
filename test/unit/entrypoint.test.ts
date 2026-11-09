@@ -88,6 +88,15 @@ describe('runtime entrypoint helpers', () => {
     expect(lib.sessionUuid('other')).not.toBe(id);
   });
 
+  test('locates the Claude Code session transcript', () => {
+    expect(lib.sessionTranscriptPath('/root', '/workspace', 'abc')).toBe(
+      '/root/.claude/projects/-workspace/abc.jsonl',
+    );
+    expect(lib.sessionTranscriptPath('/home/u', '/srv/my_app.v2', 'abc')).toBe(
+      '/home/u/.claude/projects/-srv-my-app-v2/abc.jsonl',
+    );
+  });
+
   test('validates invocation payloads', () => {
     expect(lib.parseInvocation({ prompt: 'Review this' })).toEqual({
       prompt: 'Review this',

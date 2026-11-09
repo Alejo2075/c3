@@ -95,6 +95,16 @@ export function sessionUuid(agentCoreSessionId) {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
+/**
+ * Where Claude Code stores a session transcript:
+ * <home>/.claude/projects/<encoded cwd>/<id>.jsonl. The file is the only
+ * reliable sign that a session can be resumed.
+ */
+export function sessionTranscriptPath(home, workspaceDir, sessionId) {
+  const encoded = workspaceDir.replace(/[^a-zA-Z0-9]/g, '-');
+  return `${home}/.claude/projects/${encoded}/${sessionId}.jsonl`;
+}
+
 /** MCP servers that reach the AgentCore Gateway through the SigV4 proxy. */
 export function gatewayMcpServers(gatewayUrl, region) {
   const args = [gatewayUrl, '--service', 'bedrock-agentcore'];
